@@ -1,0 +1,2975 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SKY TOWER 天空塔 3D 擬真物理推幣機</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@500;700;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #04060a;
+      font-family: 'Noto Sans TC', 'Inter', sans-serif;
+      color: #f8fafc;
+    }
+    .font-led {
+      font-family: 'Orbitron', monospace;
+      letter-spacing: 0.04em;
+    }
+    @keyframes floatPop {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.92); }
+      100% { opacity: 0; transform: translate(-50%, -48px) scale(1.05); }
+    }
+    .floating-pop {
+      animation: floatPop 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      pointer-events: none;
+    }
+    @keyframes pulseHighlight {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+      50% { box-shadow: 0 0 18px 4px rgba(251, 191, 36, 0.95); }
+    }
+    .need-exchange-pulse {
+      animation: pulseHighlight 1s infinite;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.5); border-radius: 3px; }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden bg-[#04060a]">
+
+  <!-- ==================== 極簡響應式頂部換幣與狀態列 (已移除視角切換與繁瑣投幣轉局數，換幣後直接發射) ==================== -->
+  <header class="shrink-0 relative z-40 w-full bg-slate-950/95 border-b border-white/15 px-3 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 backdrop-blur-md shadow-lg" style="touch-action: manipulation;">
+    
+    <!-- 左側：核心數據 (現金 / 可發射代幣 / 5幣1票進度 / 彩票兌獎按鈕 / 寶石彩池) -->
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs shrink-0">
+      <div class="flex items-center gap-1 font-black tracking-wider text-sky-400 shrink-0">
+        <span>🗼</span>
+        <span class="hidden sm:inline">SKY TOWER</span>
+      </div>
+
+      <div class="h-3.5 w-[1px] bg-white/15 hidden sm:block"></div>
+
+      <div class="flex items-center gap-1 shrink-0" title="現金錢包餘額">
+        <span class="text-white/50 text-[11px]">現金$</span>
+        <span id="uiWallet" class="font-led font-bold text-emerald-400">1,000</span>
+      </div>
+
+      <div class="flex items-center gap-1 bg-amber-500/10 border border-amber-400/40 px-2 py-0.5 rounded-md shrink-0" title="可直接發射的代幣數量">
+        <span class="text-amber-200/80 text-[11px] font-bold">🪙 代幣</span>
+        <span id="uiTokens" class="font-led font-black text-amber-400 text-xs">0</span>
+        <span id="uiCredits" class="hidden">0</span>
+      </div>
+
+      <!-- 掉下5個幣出1張彩票進度 -->
+      <div class="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/10 shrink-0" title="每推落 5 枚硬幣出 1 張彩票">
+        <span class="text-white/50 text-[10px]">落幣換票</span>
+        <span id="uiCoinToTicketProgress" class="font-led text-[11px] font-bold text-amber-300">0/5</span>
+      </div>
+
+      <!-- 點擊彩票直接進入湯姆熊換獎品櫃檯 -->
+      <button id="btnOpenPrizeShop" type="button" class="cursor-pointer shrink-0 flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-gradient-to-r from-sky-500/25 to-indigo-500/25 hover:from-sky-500/40 hover:to-indigo-500/40 border border-sky-400/60 transition active:scale-95 shadow-sm" title="點擊進入湯姆熊獎品兌換中心">
+        <span class="text-xs">🎟️</span>
+        <span class="text-[11px] text-sky-200 font-bold">彩票</span>
+        <span id="uiTickets" class="font-led font-black text-sky-300 text-xs">0</span>
+        <span class="text-[10px] bg-sky-400 text-slate-950 font-black px-1.5 rounded">換獎品</span>
+      </button>
+
+      <div class="flex items-center gap-1.5 bg-sky-950/60 border border-sky-400/30 px-2 py-0.5 rounded shrink-0" title="寶石輪盤集滿5顆鑽石贏得超級彩池">
+        <span class="text-sky-300 text-[11px] font-bold">💎 寶石大獎</span>
+        <span id="hudSuperBonus" class="font-led font-bold text-amber-300">607票</span>
+        <span id="hudDiamonds" class="text-[11px] font-bold text-sky-300 ml-0.5">💎1/5</span>
+      </div>
+    </div>
+
+    <!-- 右側：一鍵換幣 (換幣後直接進入代幣可立即發射) 與攻略/音效 -->
+    <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+      <div id="exchangeBtnGroup" class="flex flex-wrap items-center gap-1 rounded-lg py-0.5 shrink-0">
+        <button id="btnEx100" type="button" class="cursor-pointer shrink-0 whitespace-nowrap px-2.5 py-1 rounded bg-amber-500/25 hover:bg-amber-500/40 border border-amber-400/70 text-amber-200 text-[11px] font-bold transition active:scale-95">
+          $100換25幣
+        </button>
+        <button id="btnEx500" type="button" class="cursor-pointer shrink-0 whitespace-nowrap px-2.5 py-1 rounded bg-amber-500/35 hover:bg-amber-500/50 border border-amber-300/80 text-amber-100 text-[11px] font-bold transition active:scale-95">
+          $500換150幣
+        </button>
+        <button id="btnFreeCoins" type="button" class="cursor-pointer shrink-0 whitespace-nowrap px-2.5 py-1 rounded bg-white/10 hover:bg-emerald-500/30 border border-white/20 text-emerald-300 text-[11px] font-semibold transition active:scale-95" title="免費領取 $500 現金與 50 枚代幣">
+          🎁 免費補幣+50
+        </button>
+        <button id="btnTicketExchange" type="button" class="hidden"></button>
+      </div>
+
+      <button id="btnRules" type="button" class="cursor-pointer shrink-0 whitespace-nowrap px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] text-white/90" title="機台攻略與測試">
+        📖 攻略
+      </button>
+      <button id="btnSound" type="button" class="cursor-pointer shrink-0 px-2 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/15 text-[11px]" title="音效開關">
+        🔊
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== 超大滿版 3D 物理機台視窗 ==================== -->
+  <main class="relative flex-1 w-full h-full overflow-hidden">
+    <div id="canvasContainer" class="w-full h-full cursor-pointer"></div>
+
+    <!-- 輕量浮動提示層 -->
+    <div id="floatingContainer" class="pointer-events-none absolute inset-0 overflow-hidden z-20"></div>
+
+    <!-- ==================== 頂部微光狀態條：清楚顯示「如何觸發左側轉盤與生成新塔」 ==================== -->
+    <div class="hidden">
+      <div class="flex items-center gap-1.5">
+        <span class="text-rose-400 font-bold">⚡ 建塔集氣(投進中洞)：</span>
+        <div id="uiGodOrbs" class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-700 border border-white/20"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-700 border border-white/20"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-700 border border-white/20"></span>
+        </div>
+        <span id="uiGodOrbsText" class="text-white/70 font-mono">0/3</span>
+      </div>
+      <div class="h-3 w-[1px] bg-white/15"></div>
+      <div id="uiWheelStatusText" class="text-sky-300 font-semibold">
+        集滿 3 格自動啟動【左側藍光轉盤】升起新錢幣塔
+      </div>
+      <button id="btnQuickSpinTower" type="button" class="ml-1 px-2 py-0.5 rounded-full bg-amber-500/25 hover:bg-amber-500/45 border border-amber-400/60 text-amber-200 font-bold transition active:scale-95" title="花費 6 局直接啟動左側藍光轉盤建塔">
+        🎡 6局直接轉盤建塔
+      </button>
+    </div>
+
+    <!-- 左側轉盤開獎實況透明浮層 (當轉盤啟動時自動彈出，讓玩家 100% 看懂轉盤在做什麼！) -->
+    <div id="wheelLiveOverlay" class="hidden pointer-events-none absolute top-14 left-4 z-20 bg-slate-950/90 border-2 border-sky-400 rounded-2xl p-3 backdrop-blur-md shadow-2xl w-64">
+      <div class="text-xs font-black text-sky-300 flex items-center justify-between mb-1">
+        <span>🎡 左側藍光建塔轉盤運轉中</span>
+        <span class="animate-ping w-2 h-2 rounded-full bg-sky-400"></span>
+      </div>
+      <div id="wheelLiveDesc" class="text-[11px] text-white/90 leading-relaxed">
+        鋼珠正在輪盤內滾動！落入數字洞將立即從中央升降台升起對應層數的「新錢幣塔」；落入 💎 則點亮超級大獎鑽石！
+      </div>
+      <div class="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-bold">
+        <div class="bg-amber-500/20 border border-amber-400/50 rounded py-0.5 text-amber-300">36層 小塔</div>
+        <div class="bg-emerald-500/20 border border-emerald-400/50 rounded py-0.5 text-emerald-300">52層 中塔</div>
+        <div class="bg-rose-500/20 border border-rose-400/50 rounded py-0.5 text-rose-300">72層 高塔</div>
+      </div>
+    </div>
+
+    <!-- 派對時間頂部微光提示 -->
+    <div id="eventBanner" class="hidden pointer-events-none absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-black/90 border border-rose-500 px-4 py-1 rounded-full text-center backdrop-blur-md">
+      <span id="eventBannerTitle" class="text-xs font-black text-amber-300 tracking-wider">⚡ PARTY TIME 派對時間</span>
+      <span id="eventBannerSub" class="text-[11px] text-white/80 ml-2">進洞累積轉盤建塔</span>
+    </div>
+
+    <!-- 右下角懸浮操作區 (完全避開正中央前緣倒塔視線！) -->
+    <div class="absolute bottom-3 right-3 z-20 flex flex-col items-end gap-1.5 bg-black/80 border border-white/15 p-2 rounded-2xl backdrop-blur-md shadow-2xl">
+      <button id="btnShoot" type="button" class="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-[11px] font-black tracking-wide text-slate-950 shadow-[0_0_16px_rgba(56,189,248,0.6)] transition cursor-pointer">
+        🔵 發射代幣 PUSH 點擊或按 [空白鍵] 投落代幣
+      </button>
+      <div class="flex items-center gap-1.5 w-full justify-end">
+        <button id="btnNudge" type="button" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 active:scale-95 text-[11px] font-semibold text-amber-300 transition">
+          💥 拍擊震台
+        </button>
+        <button id="btnAutoShoot" type="button" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 text-[11px] font-semibold text-white/80 transition">
+          ⚡ 自動連發: 關
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== 🐻 湯姆熊 TOM'S WORLD 彩票獎品兌換中心彈窗 ==================== -->
+    <div id="prizeModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
+      <div class="bg-slate-950 border-2 border-sky-500/60 rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+        <!-- Modal Header -->
+        <div class="bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 px-5 py-3.5 border-b border-white/15 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl">🐻</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-black text-white tracking-wide">湯姆熊歡樂世界・彩票禮品兌換櫃檯</h2>
+              <p class="text-[11px] text-sky-300">每推落 5 枚硬幣出 1 張彩票・推倒錢幣塔可瞬間獲得大量彩票兌換實體獎品！</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="bg-black/70 border border-sky-400/50 px-3 py-1 rounded-xl text-right">
+              <div class="text-[10px] text-slate-400">目前持有彩票</div>
+              <div class="font-led text-sm sm:text-base font-black text-sky-300"><span id="shopTicketBalance">0</span> 張</div>
+            </div>
+            <button id="btnClosePrizeModal" type="button" class="text-white/60 hover:text-white text-2xl font-bold px-2">&times;</button>
+          </div>
+        </div>
+
+        <!-- Category Tabs -->
+        <div class="px-5 py-2 bg-slate-900/90 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-1.5">
+            <button type="button" data-cat="all" class="prize-cat-btn px-3 py-1 rounded-lg bg-sky-500 text-slate-950 font-bold">全部獎品</button>
+            <button type="button" data-cat="snack" class="prize-cat-btn px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold">🍬 懷舊零食玩具 (5~30票)</button>
+            <button type="button" data-cat="stationery" class="prize-cat-btn px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold">✏️ 文具生活精品 (45~150票)</button>
+            <button type="button" data-cat="plush" class="prize-cat-btn px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold">🧸 玩偶公仔盲盒 (220~550票)</button>
+            <button type="button" data-cat="appliance" class="prize-cat-btn px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold">🎮 鎮店3C家電 (850~4800票)</button>
+          </div>
+        </div>
+
+        <!-- Prize Grid & Owned Inventory -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+          <div id="prizeGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+
+          <!-- 玩家已兌換戰利品展示櫃 -->
+          <div class="bg-slate-900/90 border border-white/10 rounded-xl p-3.5">
+            <div class="text-xs font-bold text-amber-300 mb-2 flex items-center justify-between">
+              <span>🎒 我的湯姆熊戰利品收藏櫃</span>
+              <span id="ownedPrizeCount" class="text-[11px] text-slate-400">已兌換 0 件獎品</span>
+            </div>
+            <div id="ownedPrizeList" class="flex flex-wrap gap-2 text-xs text-slate-400">
+              尚未兌換獎品，快去推幣累積彩票吧！
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 隱藏式測試與攻略選單 -->
+    <div id="rulesModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-white/20 rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3 text-xs text-slate-300">
+        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+          <span class="font-bold text-white text-sm">📖 實機規則說明 & 測試快捷鍵</span>
+          <button id="btnCloseRules" type="button" class="text-white/50 hover:text-white text-lg leading-none px-1">&times;</button>
+        </div>
+
+        <div class="space-y-1.5 text-[11px] text-slate-300 bg-white/5 p-3 rounded-xl border border-white/10 leading-relaxed">
+          <div>1️⃣ <b>先換幣再投幣</b>：開局須先點最上方「$100換25幣」或「$500換150幣」，再點「投幣」轉為機台局數。</div>
+          <div>2️⃣ <b>5 枚落幣出 1 張彩票</b>：推落前緣的硬幣屬於機台內循環幣（不會加回手上的代幣），每掉落 <b>5 枚硬幣出 1 張彩票</b>。點擊上方「🎟️ 彩票」可開啟湯姆熊獎品櫃檯兌換獎品！</div>
+          <div>3️⃣ <b>左側藍光轉盤與新塔生成</b>：代幣進背板「中間紅洞」集滿 3 格（或點上方「6局直接轉盤建塔」），就會啟動<b>左側藍光鋼珠轉盤</b>；鋼珠落入哪一格，中央升降台就立即旋轉升起對應高度的全新錢幣塔！</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="btnCheatBuildTower" type="button" class="p-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-left">
+            🗼 升起超高幣塔
+          </button>
+          <button id="btnCheatCoinRain" type="button" class="p-2 rounded-lg bg-yellow-500/15 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-200 font-bold text-left">
+            🌧️ 法師100金幣雨
+          </button>
+          <button id="btnCheatParty" type="button" class="p-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-left">
+            🔥 觸發派對時間
+          </button>
+          <button id="btnCheatWheel" type="button" class="p-2 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-left">
+            🎡 轉動寶石轉盤
+          </button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 bg-white/5 p-2 rounded-lg text-[11px]">
+          <div>法師彩池: <span id="hudMagePool" class="text-amber-300 font-bold">100</span> <span id="hudMageSteps" class="hidden"></span></div>
+          <div>精靈彩池: <span id="hudElfPool" class="text-sky-300 font-bold">50</span> <span id="hudElfSteps" class="hidden"></span></div>
+          <div>檯面幣塔: <span id="hudTowerInfo" class="text-emerald-300 font-bold">1</span> <span id="hudGodSteps" class="hidden"></span></div>
+          <div>待轉次數: <span id="hudSpinsLeft" class="text-amber-300 font-bold">0</span></div>
+          <div>建塔累積: <span id="hudTowerPending" class="text-amber-300 font-bold">0</span></div>
+          <div>升降狀態: <span id="hudElevatorState" class="text-emerald-300 font-bold">待機</span></div>
+        </div>
+        <div id="hudElevatorBar" class="hidden"></div>
+        <div id="ticketDispenserWidget" class="hidden"><span id="ticketDispenseCount"></span></div>
+
+        <div class="flex justify-end">
+          <button id="btnGotItRules" type="button" class="px-4 py-1.5 rounded-lg bg-sky-500 text-slate-950 font-bold">開始推塔！</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function() {
+      // ================================================================
+      // 1. REALISTIC METAL ACOUSTIC SYNTHESIZER
+      // ================================================================
+      class RealisticCoinAudio {
+        constructor() {
+          this.ctx = null;
+          this.muted = false;
+          this.lastClinkTime = 0;
+        }
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        }
+        playMetalClink(intensity = 0.5, pitchShift = 1.0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          if (now - this.lastClinkTime < 0.016 && intensity < 0.8) return;
+          this.lastClinkTime = now;
+
+          const vol = Math.min(0.22, Math.max(0.015, intensity * 0.14));
+          const baseFreq = (2400 + (Math.random() - 0.5) * 340) * pitchShift;
+          const partials = [1.0, 2.29, 3.82];
+
+          partials.forEach((ratio, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = idx === 0 ? 'sine' : 'triangle';
+            osc.frequency.setValueAtTime(baseFreq * ratio, now);
+            gain.gain.setValueAtTime(vol / (idx * 1.8 + 1), now);
+            gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.045 + (2 - idx) * 0.025);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.11);
+          });
+        }
+        playHeavyThud(intensity = 1.0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(130, now);
+          osc.frequency.exponentialRampToValueAtTime(36, now + 0.18);
+          gain.gain.setValueAtTime(0.28 * intensity, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.19);
+        }
+        playAlertBuzzer() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(195, now);
+          osc.frequency.setValueAtTime(155, now + 0.08);
+          gain.gain.setValueAtTime(0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.22);
+        }
+        playChuteSensor(type) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const notes = type === 'god' ? [587.3, 880, 1174.6] : type === 'mage' ? [523.2, 659.2, 784] : [659.2, 784, 1046.5];
+          notes.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, now + i * 0.045);
+            gain.gain.setValueAtTime(0.11, now + i * 0.045);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.045 + 0.15);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.045);
+            osc.stop(now + i * 0.045 + 0.15);
+          });
+        }
+        playTowerBuildTick(progressRatio = 0.5) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          // Rising pitch mechanical stacking clink + synth pulse
+          const freq = 440 * Math.pow(2, progressRatio * 1.25);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          osc.frequency.exponentialRampToValueAtTime(freq * 1.35, now + 0.06);
+          gain.gain.setValueAtTime(0.09, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.075);
+        }
+        playWheelSpinTick(pitch = 1.0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(680 * pitch, now);
+          osc.frequency.exponentialRampToValueAtTime(320 * pitch, now + 0.03);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.038);
+        }
+        playCeremonyComplete() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const chord = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+          chord.forEach((f, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.11, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.45);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.45);
+          });
+        }
+      }
+
+      const sound = new RealisticCoinAudio();
+
+      // ================================================================
+      // 2. GAME STATE & TOM'S WORLD PRIZE DATABASE (湯姆熊獎品資料庫)
+      // ================================================================
+      const state = {
+        wallet: 1000,          // 初始現金 $1000
+        tokens: 0,             // 初始代幣 0 枚 (必須先在上方換幣才能玩！)
+        credits: 0,            // 初始局數 0 局
+        tickets: 0,            // 累積贏得彩票
+        droppedCoinAcc: 0,     // 掉下5個幣出1張彩票累積器 (0~4)
+
+        superBonus: 607,
+        diamonds: 1,
+        mageBonusPool: 100,
+        elfBonusPool: 30,
+
+        mageSteps: 1,
+        godSteps: 1,
+        elfSteps: 1,
+        wheelIndex: { mage: 0, god: 0, elf: 0 },
+
+        // 3 Active Mechanical Backboard Wheels (金幣法師 / 天空之神 / 彩票精靈)
+        backWheels: [
+          {
+            key: 'mage', title: '🧙‍♂️ 法師轉輪', color: '#facc15', hex: 0xfacc15,
+            angle: 0, vel: 0, spinning: false, targetIdx: 0, lastTickSector: -1,
+            statusText: '進左格啟動轉輪',
+            sectors: [
+              { label: '掉3金幣', type: 'coins', val: 3 },
+              { label: '🔥升1階', type: 'step',  val: 1 },
+              { label: '掉5金幣', type: 'coins', val: 5 },
+              { label: '🔥升1階', type: 'step',  val: 1 },
+              { label: '掉8金幣', type: 'coins', val: 8 },
+              { label: '⚡升2階', type: 'step',  val: 2 }
+            ]
+          },
+          {
+            key: 'god', title: '⚡ 天神轉輪', color: '#f43f5e', hex: 0xf43f5e,
+            angle: 0, vel: 0, spinning: false, targetIdx: 0, lastTickSector: -1,
+            statusText: '進中格啟動轉輪',
+            sectors: [
+              { label: '🎡轉寶石盤', type: 'roulette', val: 1 },
+              { label: '🔥升1階',   type: 'step',     val: 1 },
+              { label: '塔能+35%',  type: 'energy',   val: 35 },
+              { label: '🔥升1階',   type: 'step',     val: 1 },
+              { label: '🎡轉寶石盤', type: 'roulette', val: 1 },
+              { label: '⚡升2階',   type: 'step',     val: 2 }
+            ]
+          },
+          {
+            key: 'elf', title: '🧚‍♀️ 精靈轉輪', color: '#38bdf8', hex: 0x38bdf8,
+            angle: 0, vel: 0, spinning: false, targetIdx: 0, lastTickSector: -1,
+            statusText: '進右格啟動轉輪',
+            sectors: [
+              { label: '得2張票', type: 'tickets', val: 2 },
+              { label: '🔥升1階', type: 'step',    val: 1 },
+              { label: '得3張票', type: 'tickets', val: 3 },
+              { label: '🔥升1階', type: 'step',    val: 1 },
+              { label: '得5張票', type: 'tickets', val: 5 },
+              { label: '⚡升2階', type: 'step',    val: 2 }
+            ]
+          }
+        ],
+
+        isPartyTime: false,
+        partyTimeLeft: 0,
+        rouletteSpinsLeft: 0,
+        rouletteSpinning: false,
+        roulettePhase: 'idle', // 'idle' | 'outer_spin' | 'drop_pocket' | 'celebrate'
+        rouletteTimer: 0,
+        rouletteWinIdx: -1,
+        rouletteStatusText: '進【中格】抽寶石輪盤！',
+        rouletteSubText: '滿100%能量或中建塔格即升起新塔',
+        ballAngle: 0,
+        ballAngularVel: 0,
+        ballRadius: 0.96,
+        pendingTowerCoins: 0, // Used as 0..100% Tower Energy
+        elevatorActive: false,
+
+        autoShoot: false,
+        lastShootTime: 0,
+        nudgeCooldown: 0,
+        shakeOffset: new THREE.Vector3(),
+
+        ownedPrizes: {}        // { prizeId: count }
+      };
+
+      const PRIZE_CATALOG = [
+        { id: 'p1',  cat: 'snack',      icon: '🍜', name: '科學麵香脆隨手包',     tickets: 5,    desc: '湯姆熊櫃檯經典湊票必換零嘴' },
+        { id: 'p2',  cat: 'snack',      icon: '🍬', name: '森永牛奶糖復古盒',     tickets: 8,    desc: '香濃焦糖奶香，懷舊感滿分' },
+        { id: 'p3',  cat: 'snack',      icon: '🚁', name: '發光竹蜻蜓彈射組',     tickets: 15,   desc: '童年必換小玩具，夜晚旋轉發光' },
+        { id: 'p4',  cat: 'snack',      icon: '🚗', name: '合金渦輪迴力跑車',     tickets: 28,   desc: '金屬烤漆車身，強勁迴力衝刺' },
+        { id: 'p5',  cat: 'stationery', icon: '✏️', name: '角落小夥伴自動鉛筆',   tickets: 45,   desc: '日本正版授權搖搖出芯設計' },
+        { id: 'p6',  cat: 'stationery', icon: '📓', name: '三麗鷗燙金線圈筆記本', tickets: 65,   desc: '厚磅護眼紙張，附可愛貼紙頁' },
+        { id: 'p7',  cat: 'stationery', icon: '🔑', name: '寶可夢立體金屬鑰匙圈', tickets: 95,   desc: '皮卡丘高質感琺瑯烤漆吊飾' },
+        { id: 'p8',  cat: 'stationery', icon: '🧋', name: '316不鏽鋼保溫隨行杯',  tickets: 145,  desc: '長效保冰保溫，附環保吸管' },
+        { id: 'p9',  cat: 'plush',      icon: '🐹', name: '吉伊卡哇絨毛玩偶吊飾', tickets: 220,  desc: '超人氣小可愛軟萌背包掛件' },
+        { id: 'p10', cat: 'plush',      icon: '🐻', name: '湯姆熊限定 35cm 大玩偶', tickets: 320, desc: '門市鎮店吉祥物，柔軟親膚絨毛' },
+        { id: 'p11', cat: 'plush',      icon: '🎁', name: 'POP MART 潮流盲盒公仔', tickets: 420, desc: '隨機開箱隱藏版設計師潮玩' },
+        { id: 'p12', cat: 'plush',      icon: '🏴‍☠️', name: '航海王魯夫五檔景品模型', tickets: 550, desc: '日版空運盒裝，躍動感特效底座' },
+        { id: 'p13', cat: 'appliance',  icon: '🎧', name: 'ANC 主動降噪藍牙耳機', tickets: 850,  desc: '低延遲遊戲模式，30小時續航' },
+        { id: 'p14', cat: 'appliance',  icon: '⌨️', name: 'RGB 機械式青軸電競鍵盤', tickets: 1400, desc: '清脆段落手感，全鍵無衝突背光' },
+        { id: 'p15', cat: 'appliance',  icon: '🍟', name: '數位觸控大容量氣炸鍋', tickets: 2200, desc: '360度熱風循環，少油健康料理' },
+        { id: 'p16', cat: 'appliance',  icon: '🎮', name: 'Switch OLED 遊戲主機', tickets: 4800, desc: '湯姆熊玻璃櫥窗鎮店夢幻大獎！' }
+      ];
+
+      let currentPrizeCat = 'all';
+
+      const floatingContainer = document.getElementById('floatingContainer');
+      function showFloatingText() {
+        // All on-screen floating text prompts disabled per user request for a completely unobstructed view
+      }
+
+      // ================================================================
+      // 3. THREE.JS SCENE & CLOSE-UP FULL-BLEED CAMERA
+      // ================================================================
+      const container = document.getElementById('canvasContainer');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x04060a);
+      scene.fog = new THREE.FogExp2(0x04060a, 0.008);
+
+      const camera = new THREE.PerspectiveCamera(44, container.clientWidth / container.clientHeight, 0.1, 150);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.18;
+      container.appendChild(renderer.domElement);
+
+      function createMetallicEnvMap() {
+        const c = document.createElement('canvas');
+        c.width = 512; c.height = 256;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 256);
+        grad.addColorStop(0, '#0f172a');
+        grad.addColorStop(0.25, '#38bdf8');
+        grad.addColorStop(0.48, '#ffffff');
+        grad.addColorStop(0.52, '#1e293b');
+        grad.addColorStop(0.75, '#e879f9');
+        grad.addColorStop(1, '#020617');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 512, 256);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(50, 35, 160, 32);
+        ctx.fillRect(300, 40, 160, 32);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(170, 90, 170, 22);
+        const tex = new THREE.CanvasTexture(c);
+        tex.mapping = THREE.EquirectangularReflectionMapping;
+        return tex;
+      }
+      const envMap = createMetallicEnvMap();
+      scene.environment = envMap;
+
+      const machineGroup = new THREE.Group();
+      machineGroup.scale.set(1.32, 1.32, 1.32);
+      scene.add(machineGroup);
+
+      function getAspectDistanceMultiplier() {
+        const aspect = container.clientWidth / Math.max(1, container.clientHeight);
+        return aspect < 1.0 ? (1.18 / Math.max(0.55, aspect)) : Math.max(0.84, 1.08 / Math.sqrt(aspect));
+      }
+
+      const baseCamPresets = {
+        full:     { pos: new THREE.Vector3(0, 10.2, 15.4), look: new THREE.Vector3(0, 4.8, 0.7) },
+        tower:    { pos: new THREE.Vector3(0, 6.6, 11.2),  look: new THREE.Vector3(0, 3.0, 3.2) },
+        pin:      { pos: new THREE.Vector3(0, 6.8, 10.8),  look: new THREE.Vector3(0, 6.0, -3.4) },
+        wheel:    { pos: new THREE.Vector3(-5.8, 6.2, 8.6), look: new THREE.Vector3(-4.7, 2.1, 0.85) },
+        ceremony: { pos: new THREE.Vector3(0, 5.4, 9.4),   look: new THREE.Vector3(0, 2.2, 0.4) }
+      };
+      let activeCamKey = 'full';
+      let targetCamPos = new THREE.Vector3();
+      let targetCamLook = new THREE.Vector3();
+      let currentCamLook = new THREE.Vector3(0, 4.5, 1.1);
+
+      function applyCamPreset(key) {
+        activeCamKey = key;
+        const mult = getAspectDistanceMultiplier();
+        const preset = baseCamPresets[key];
+        targetCamLook.copy(preset.look);
+        const dir = preset.pos.clone().sub(preset.look).multiplyScalar(mult);
+        targetCamPos.copy(preset.look).add(dir);
+      }
+      applyCamPreset('full');
+      camera.position.copy(targetCamPos);
+      camera.lookAt(currentCamLook);
+
+      let isDragging = false, dragMoved = false, prevX = 0, prevY = 0;
+      container.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        dragMoved = false;
+        prevX = e.clientX;
+        prevY = e.clientY;
+      });
+      window.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
+        prevX = e.clientX;
+        prevY = e.clientY;
+        const offset = targetCamPos.clone().sub(targetCamLook);
+        const sph = new THREE.Spherical().setFromVector3(offset);
+        sph.theta = Math.max(-0.95, Math.min(0.95, sph.theta - dx * 0.0055));
+        sph.phi = Math.max(0.28, Math.min(1.45, sph.phi - dy * 0.005));
+        offset.setFromSpherical(sph);
+        targetCamPos.copy(targetCamLook).add(offset);
+      });
+      window.addEventListener('pointerup', () => {
+        if (isDragging && !dragMoved) shootCoin(false);
+        isDragging = false;
+      });
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const offset = targetCamPos.clone().sub(targetCamLook);
+        const dist = Math.max(6.5, Math.min(28, offset.length() + e.deltaY * 0.01));
+        offset.normalize().multiplyScalar(dist);
+        targetCamPos.copy(targetCamLook).add(offset);
+      }, { passive: false });
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xe2e8f0, 0.62));
+
+      const keyLight = new THREE.DirectionalLight(0xfffbeb, 1.5);
+      keyLight.position.set(6, 24, 16);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 2;
+      keyLight.shadow.camera.far = 45;
+      const d = 12;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      const backNeonLight = new THREE.PointLight(0xd946ef, 1.4, 24);
+      backNeonLight.position.set(0, 7.5, -2.5);
+      scene.add(backNeonLight);
+
+      const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.85);
+      rimLight.position.set(-10, 12, -6);
+      scene.add(rimLight);
+
+      // ================================================================
+      // 4. PBR MATERIALS & COIN GEOMETRY (嚴格防穿模幾何尺寸)
+      // ================================================================
+      function createPBRCoinTextures(isGold) {
+        const size = 256;
+        const colorCanvas = document.createElement('canvas');
+        colorCanvas.width = size; colorCanvas.height = size;
+        const cCtx = colorCanvas.getContext('2d');
+
+        const bumpCanvas = document.createElement('canvas');
+        bumpCanvas.width = size; bumpCanvas.height = size;
+        const bCtx = bumpCanvas.getContext('2d');
+
+        const grad = cCtx.createRadialGradient(128, 128, 10, 128, 128, 124);
+        if (isGold) {
+          grad.addColorStop(0, '#fef08a');
+          grad.addColorStop(0.55, '#f59e0b');
+          grad.addColorStop(0.88, '#d97706');
+          grad.addColorStop(1, '#78350f');
+        } else {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.55, '#cbd5e1');
+          grad.addColorStop(0.88, '#94a3b8');
+          grad.addColorStop(1, '#475569');
+        }
+        cCtx.fillStyle = grad;
+        cCtx.fillRect(0, 0, size, size);
+
+        bCtx.fillStyle = '#404040';
+        bCtx.fillRect(0, 0, size, size);
+
+        bCtx.strokeStyle = '#ffffff';
+        bCtx.lineWidth = 14;
+        bCtx.beginPath();
+        bCtx.arc(128, 128, 112, 0, Math.PI * 2);
+        bCtx.stroke();
+
+        cCtx.strokeStyle = isGold ? '#fef9c3' : '#f1f5f9';
+        cCtx.lineWidth = 8;
+        cCtx.beginPath();
+        cCtx.arc(128, 128, 108, 0, Math.PI * 2);
+        cCtx.stroke();
+
+        bCtx.fillStyle = '#e5e5e5';
+        bCtx.font = '900 44px Orbitron, sans-serif';
+        bCtx.textAlign = 'center';
+        bCtx.textBaseline = 'middle';
+        bCtx.fillText('SKY', 128, 106);
+        bCtx.font = '700 30px Orbitron, sans-serif';
+        bCtx.fillText('TOWER', 128, 148);
+
+        cCtx.fillStyle = isGold ? '#92400e' : '#334155';
+        cCtx.font = '900 44px Orbitron, sans-serif';
+        cCtx.textAlign = 'center';
+        cCtx.textBaseline = 'middle';
+        cCtx.fillText('SKY', 128, 106);
+        cCtx.font = '700 30px Orbitron, sans-serif';
+        cCtx.fillText('TOWER', 128, 148);
+
+        return {
+          map: new THREE.CanvasTexture(colorCanvas),
+          bumpMap: new THREE.CanvasTexture(bumpCanvas)
+        };
+      }
+
+      const silverTex = createPBRCoinTextures(false);
+      const goldTex = createPBRCoinTextures(true);
+
+      const silverCoinMat = new THREE.MeshStandardMaterial({
+        map: silverTex.map,
+        bumpMap: silverTex.bumpMap,
+        bumpScale: 0.02,
+        color: 0xe2e8f0,
+        metalness: 0.92,
+        roughness: 0.17,
+        envMap: envMap,
+        envMapIntensity: 1.4
+      });
+
+      const goldCoinMat = new THREE.MeshStandardMaterial({
+        map: goldTex.map,
+        bumpMap: goldTex.bumpMap,
+        bumpScale: 0.022,
+        color: 0xfbbf24,
+        metalness: 0.95,
+        roughness: 0.13,
+        envMap: envMap,
+        envMapIntensity: 1.55
+      });
+
+      const brushedSteelMat = new THREE.MeshStandardMaterial({
+        color: 0xcbd5e1,
+        metalness: 0.88,
+        roughness: 0.24,
+        envMap: envMap
+      });
+
+      const darkMetalMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        metalness: 0.75,
+        roughness: 0.35,
+        envMap: envMap
+      });
+
+      const acrylicGuardMat = new THREE.MeshPhysicalMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.22,
+        roughness: 0.05,
+        metalness: 0.05
+      });
+
+      const COIN_R = 0.37;
+      const COIN_H = 0.11;
+      const coinGeo = new THREE.CylinderGeometry(COIN_R, COIN_R, COIN_H, 24);
+
+      // ================================================================
+      // 5. SOLID BOUNDARY WALLS & PLAYFIELD GEOMETRY (100% 兩側實體防穿模邊界)
+      // ================================================================
+      const LOWER_Y = 0.0;
+      const LOWER_Z_FRONT = 5.95; // 前方唯一掉落出票邊緣
+      // Solid inner wall face at X = ±3.88 -> Coin center strictly clamped to [-3.49, +3.49] so coins NEVER clip through walls or fall off the sides!
+      const WALL_INNER_X = 3.88;
+      const LOWER_MAX_COIN_X = WALL_INNER_X - COIN_R - 0.02; // 3.49
+      const UPPER_MAX_COIN_X = 3.38;
+
+      const UPPER_Y = 0.78;
+      const PUSHER_CENTER_Z = -1.75;
+      const PUSHER_STROKE = 0.82; // Oscillates between -2.57 and -0.93
+      const PUSHER_HALF_Z = 2.00;
+      // Extended front edge of upper shelf = -0.93 + 2.00 = +1.07
+      const PUSHER_MAX_FRONT_Z = PUSHER_CENTER_Z + PUSHER_STROKE + PUSHER_HALF_Z; // +1.07
+      const BACK_SCRAPER_Z = -3.15;
+      const GUARD_R = 1.22;
+
+      // Lower Bed Floor
+      const lowerBedMesh = new THREE.Mesh(new THREE.BoxGeometry(WALL_INNER_X * 2 + 0.4, 0.55, 8.0), brushedSteelMat);
+      lowerBedMesh.position.set(0, -0.275, 2.05);
+      lowerBedMesh.receiveShadow = true;
+      machineGroup.add(lowerBedMesh);
+
+      // Front Winning Lip (前方出票感應槽：掉滿5枚出1張彩票)
+      const frontLipMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(8.8, 0.48, 0.38),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.6 })
+      );
+      frontLipMesh.position.set(0, -0.35, LOWER_Z_FRONT + 0.55);
+      machineGroup.add(frontLipMesh);
+
+      const winZoneStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(WALL_INNER_X * 2, 0.09, 0.22),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      );
+      winZoneStrip.position.set(0, -0.08, LOWER_Z_FRONT + 0.42);
+      machineGroup.add(winZoneStrip);
+
+      // Semicircular Recess Radius on the front-center of the Upper Pusher
+      const RECESS_R = 1.24;
+
+      // Helper: returns the exact Z coordinate of the Upper Pusher's front edge at any X!
+      // Outside [-RECESS_R, +RECESS_R], it is the straight line `pusherFrontZ`.
+      // Inside (-RECESS_R, +RECESS_R), it is the smooth Semicircular Concave Arc `pusherFrontZ - sqrt(RECESS_R^2 - x^2)`!
+      function getPusherFrontZAtX(x, currentPusherZ) {
+        const frontZ = currentPusherZ + PUSHER_HALF_Z;
+        if (Math.abs(x) >= RECESS_R) return frontZ;
+        return frontZ - Math.sqrt(Math.max(0, RECESS_R * RECESS_R - x * x));
+      }
+
+      // Central Elevator Flush Disc right inside the Semicircular Recess pocket (x = 0, z = 0.55)
+      // Flush with LOWER_Y so coins on the lower deck slide smoothly over it without disappearing!
+      const elevatorCenter = { x: 0.0, z: 0.55 };
+      const elevatorDiscMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.14, 1.14, 0.02, 36),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9, roughness: 0.2 })
+      );
+      elevatorDiscMesh.position.set(elevatorCenter.x, 0.005, elevatorCenter.z);
+      elevatorDiscMesh.receiveShadow = true;
+      machineGroup.add(elevatorDiscMesh);
+
+      const ceremonyRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const ceremonyRingMesh = new THREE.Mesh(
+        new THREE.TorusGeometry(1.18, 0.035, 16, 48),
+        ceremonyRingMat
+      );
+      ceremonyRingMesh.rotation.x = Math.PI / 2;
+      ceremonyRingMesh.position.set(elevatorCenter.x, 0.015, elevatorCenter.z);
+      machineGroup.add(ceremonyRingMesh);
+
+      const ceremonySpotLight = new THREE.PointLight(0x38bdf8, 0.0, 14);
+      ceremonySpotLight.position.set(0, 4.5, 0.8);
+      machineGroup.add(ceremonySpotLight);
+
+      // Upper Moving Pusher Shelf built with THREE.ExtrudeGeometry for a TRUE 180° Semicircular Concave Recess!
+      const pusherGroup = new THREE.Group();
+      const pusherShape = new THREE.Shape();
+      const hw = 3.80;
+      const hz = PUSHER_HALF_Z; // 2.00
+      pusherShape.moveTo(-hw, -hz);
+      pusherShape.lineTo( hw, -hz);
+      pusherShape.lineTo( hw,  hz);
+      pusherShape.lineTo( RECESS_R, hz);
+      // Carve a mathematically true Semicircular Concave Arc into the front-center of the pusher!
+      pusherShape.absarc(0, hz, RECESS_R, 0, Math.PI, true);
+      pusherShape.lineTo(-hw,  hz);
+      pusherShape.closePath();
+
+      const extrudeSettings = { depth: UPPER_Y, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+      const pusherGeo = new THREE.ExtrudeGeometry(pusherShape, extrudeSettings);
+      // Rotate so Shape (X, Y) maps to 3D (X, Z) and extrudes upward along +Y from 0 to UPPER_Y!
+      pusherGeo.rotateX(Math.PI / 2);
+      const pusherSlab = new THREE.Mesh(pusherGeo, brushedSteelMat);
+      pusherSlab.position.y = UPPER_Y;
+      pusherSlab.castShadow = true;
+      pusherSlab.receiveShadow = true;
+      pusherGroup.add(pusherSlab);
+
+      // Semicircular Rim Trim along the concave arc on the Upper Pusher
+      const guardGeo = new THREE.CylinderGeometry(RECESS_R, RECESS_R, 0.35, 36, 1, true, -Math.PI / 2, Math.PI);
+      guardGeo.rotateY(Math.PI);
+      const guardMesh = new THREE.Mesh(guardGeo, acrylicGuardMat);
+      guardMesh.position.set(0, UPPER_Y + 0.175, hz);
+      pusherGroup.add(guardMesh);
+
+      // Fixed Low Scraper Back Lip (Low profile so it NEVER blocks the 3 reward boxes behind it!)
+      const upperBackWall = new THREE.Mesh(new THREE.BoxGeometry(7.76, 0.28, 0.42), darkMetalMat);
+      upperBackWall.position.set(0, UPPER_Y + 0.14, BACK_SCRAPER_Z - 0.21);
+      machineGroup.add(upperBackWall);
+
+      pusherGroup.position.z = PUSHER_CENTER_Z;
+      machineGroup.add(pusherGroup);
+
+      // SOLID Vertical Retaining Side Walls + Angled Upper Ledges (兩側堅固垂直護欄，硬幣絕對無法穿模或從側邊掉出！)
+      const sideWallMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.22, metalness: 0.18 });
+      const sideRailMetalMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.5 });
+
+      // Inner vertical retaining walls right at X = ±(WALL_INNER_X + 0.25) so visual wall face is at EXACTLY ±WALL_INNER_X (3.88)
+      const leftRetainingWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 9.4), sideWallMat);
+      leftRetainingWall.position.set(-(WALL_INNER_X + 0.25), 0.65, 1.35);
+      leftRetainingWall.receiveShadow = true;
+      machineGroup.add(leftRetainingWall);
+
+      const rightRetainingWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 9.4), sideWallMat);
+      rightRetainingWall.position.set(WALL_INNER_X + 0.25, 0.65, 1.35);
+      rightRetainingWall.receiveShadow = true;
+      machineGroup.add(rightRetainingWall);
+
+      // Blue metallic top trim rails along the retaining walls
+      const leftTopRail = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.16, 9.4), sideRailMetalMat);
+      leftTopRail.position.set(-(WALL_INNER_X + 0.25), 1.62, 1.35);
+      machineGroup.add(leftTopRail);
+
+      const rightTopRail = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.16, 9.4), sideRailMetalMat);
+      rightTopRail.position.set(WALL_INNER_X + 0.25, 1.62, 1.35);
+      machineGroup.add(rightTopRail);
+
+      // Outer decorative angled wings
+      const leftWing = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 8.2), sideWallMat);
+      leftWing.position.set(-4.85, 1.15, 1.5);
+      leftWing.rotation.z = -0.18;
+      machineGroup.add(leftWing);
+
+      const rightWing = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 8.2), sideWallMat);
+      rightWing.position.set(4.85, 1.15, 1.5);
+      rightWing.rotation.z = 0.18;
+      machineGroup.add(rightWing);
+
+      // ================================================================
+      // 5B. ULTRA-REALISTIC 3D GEM ROULETTE (左側 3D 擬真寶石建塔輪盤 + 立體寶石凹槽 + 即時LED看板)
+      // ================================================================
+      const ROULETTE_POCKETS = [
+        { label: '💎 藍鑽石', sub: '集5顆爆大獎', col: '#38bdf8', hex: 0x38bdf8, type: 'diamond', val: 1 },
+        { label: '🧱 塔能+50%', sub: '滿100%升新塔', col: '#facc15', hex: 0xfacc15, type: 'energy',  val: 50 },
+        { label: '🗼 立即建塔', sub: '直接升起新塔', col: '#4ade80', hex: 0x4ade80, type: 'tower',   val: 52 },
+        { label: '💎 紅寶石', sub: '集5顆爆大獎', col: '#f43f5e', hex: 0xf43f5e, type: 'diamond', val: 1 },
+        { label: '🧱 塔能+50%', sub: '滿100%升新塔', col: '#fb923c', hex: 0xfb923c, type: 'energy',  val: 50 },
+        { label: '🪙 補15金幣', sub: '推台天降金幣', col: '#c084fc', hex: 0xc084fc, type: 'coins',   val: 15 }
+      ];
+
+      const rouletteGroup = new THREE.Group();
+      // Positioned prominently on the left wing and angled cleanly toward the player camera!
+      rouletteGroup.position.set(-4.65, 3.35, 1.15);
+      rouletteGroup.rotation.set(0.54, 0.30, -0.18);
+      rouletteGroup.scale.set(1.14, 1.14, 1.14);
+      machineGroup.add(rouletteGroup);
+
+      // 1. Multi-tiered Metallic Casino Bowl & Outer Ball Track
+      const rOuterBowl = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.68, 1.52, 0.36, 48),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.22, envMap: envMap })
+      );
+      rouletteGroup.add(rOuterBowl);
+
+      const rChromeRim = new THREE.Mesh(
+        new THREE.TorusGeometry(1.62, 0.08, 20, 64),
+        brushedSteelMat
+      );
+      rChromeRim.rotation.x = Math.PI / 2;
+      rChromeRim.position.y = 0.20;
+      rouletteGroup.add(rChromeRim);
+
+      const rNeonRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const rNeonTorus = new THREE.Mesh(
+        new THREE.TorusGeometry(1.50, 0.055, 16, 64),
+        rNeonRingMat
+      );
+      rNeonTorus.rotation.x = Math.PI / 2;
+      rNeonTorus.position.y = 0.22;
+      rouletteGroup.add(rNeonTorus);
+
+      // 8 Brass Diamond Deflector Pins around the outer ball track
+      const fretGeo = new THREE.OctahedronGeometry(0.065, 0);
+      for (let f = 0; f < 8; f++) {
+        const fa = (f / 8) * Math.PI * 2;
+        const fret = new THREE.Mesh(fretGeo, goldCoinMat);
+        fret.position.set(Math.cos(fa) * 1.34, 0.22, Math.sin(fa) * 1.34);
+        rouletteGroup.add(fret);
+      }
+
+      // 2. Spinning Rotor Group (Contains high-res canvas disc + 3D metal pocket dividers + 3D faceted gems + 3D pocket rings)
+      const rRotorGroup = new THREE.Group();
+      rRotorGroup.position.y = 0.17;
+      rouletteGroup.add(rRotorGroup);
+
+      const rDiscCanvas = document.createElement('canvas');
+      rDiscCanvas.width = 1024; rDiscCanvas.height = 1024;
+      const rCtx = rDiscCanvas.getContext('2d');
+      const rDiscTex = new THREE.CanvasTexture(rDiscCanvas);
+
+      function drawRouletteDisc(highlightIdx = -1) {
+        rCtx.clearRect(0, 0, 1024, 1024);
+        const cx = 512, cy = 512;
+
+        // Outer metallic track
+        const trackGrad = rCtx.createRadialGradient(cx, cy, 80, cx, cy, 500);
+        trackGrad.addColorStop(0, '#0f172a');
+        trackGrad.addColorStop(0.72, '#1e293b');
+        trackGrad.addColorStop(0.88, '#020617');
+        trackGrad.addColorStop(1, '#38bdf8');
+        rCtx.fillStyle = trackGrad;
+        rCtx.beginPath();
+        rCtx.arc(cx, cy, 500, 0, Math.PI * 2);
+        rCtx.fill();
+
+        // Draw 6 wedge sectors + deep 3D-styled pockets
+        ROULETTE_POCKETS.forEach((p, i) => {
+          // In Three.js Cylinder top UV, angle `a` on canvas (cos(a), sin(a)) corresponds to 3D local (x = r*cos(a), z = r*sin(a))
+          const aCenter = (i / 6) * Math.PI * 2;
+          const a0 = aCenter - Math.PI / 6;
+          const a1 = aCenter + Math.PI / 6;
+          const isWon = (i === highlightIdx);
+
+          rCtx.beginPath();
+          rCtx.moveTo(cx, cy);
+          rCtx.arc(cx, cy, 425, a0, a1);
+          rCtx.closePath();
+          rCtx.fillStyle = isWon ? 'rgba(250, 204, 21, 0.45)' : 'rgba(15, 23, 42, 0.92)';
+          rCtx.fill();
+          rCtx.strokeStyle = isWon ? '#ffffff' : p.col;
+          rCtx.lineWidth = isWon ? 10 : 5;
+          rCtx.stroke();
+
+          // Pocket hole at radius 285px (maps to 3D r = 0.80)
+          const px = cx + Math.cos(aCenter) * 285;
+          const py = cy + Math.sin(aCenter) * 285;
+
+          rCtx.fillStyle = isWon ? p.col : '#020617';
+          rCtx.beginPath();
+          rCtx.arc(px, py, 82, 0, Math.PI * 2);
+          rCtx.fill();
+          rCtx.strokeStyle = isWon ? '#ffffff' : p.col;
+          rCtx.lineWidth = isWon ? 12 : 8;
+          rCtx.stroke();
+
+          // Draw outward-facing legible text inside each sector
+          rCtx.save();
+          rCtx.translate(px, py);
+          rCtx.rotate(aCenter + Math.PI / 2);
+          rCtx.fillStyle = isWon ? '#020617' : '#ffffff';
+          rCtx.font = '900 32px "Noto Sans TC", sans-serif';
+          rCtx.textAlign = 'center';
+          rCtx.textBaseline = 'middle';
+          rCtx.fillText(p.label, 0, -14);
+          rCtx.fillStyle = isWon ? '#0f172a' : p.col;
+          rCtx.font = 'bold 22px "Noto Sans TC", sans-serif';
+          rCtx.fillText(p.sub, 0, 22);
+          rCtx.restore();
+        });
+
+        rDiscTex.needsUpdate = true;
+      }
+      drawRouletteDisc(-1);
+
+      const rDiscMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.42, 1.42, 0.06, 48),
+        new THREE.MeshStandardMaterial({ map: rDiscTex, roughness: 0.22, metalness: 0.45 })
+      );
+      rRotorGroup.add(rDiscMesh);
+
+      // 3D Center Spire & Faceted Giant Gem on the Rotor Hub
+      const rHubBase = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 0.22, 24), goldCoinMat);
+      rHubBase.position.y = 0.12;
+      rRotorGroup.add(rHubBase);
+
+      const rCenterGemMat = new THREE.MeshPhysicalMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.45,
+        metalness: 0.1,
+        roughness: 0.05,
+        transmission: 0.6,
+        transparent: true,
+        opacity: 0.92
+      });
+      const rCenterGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 1), rCenterGemMat);
+      rCenterGem.position.y = 0.34;
+      rRotorGroup.add(rCenterGem);
+
+      // 6 Physical 3D Pocket Rings, Spokes & 3D Gems on the Rotor
+      const rPocketRingMats = [];
+      for (let i = 0; i < 6; i++) {
+        const p = ROULETTE_POCKETS[i];
+        const aDivider = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.07, 0.045), brushedSteelMat);
+        spoke.position.set(Math.cos(aDivider) * 0.82, 0.05, Math.sin(aDivider) * 0.82);
+        spoke.rotation.y = -aDivider;
+        rRotorGroup.add(spoke);
+
+        // 3D Glowing Pocket Ring around each hole at radius 0.80
+        const aPocket = (i / 6) * Math.PI * 2;
+        const pRingMat = new THREE.MeshBasicMaterial({ color: p.hex });
+        rPocketRingMats.push(pRingMat);
+        const pRing = new THREE.Mesh(new THREE.TorusGeometry(0.23, 0.025, 12, 28), pRingMat);
+        pRing.rotation.x = Math.PI / 2;
+        pRing.position.set(Math.cos(aPocket) * 0.80, 0.045, Math.sin(aPocket) * 0.80);
+        rRotorGroup.add(pRing);
+
+        // Place a 3D faceted Gem or Mini Gold Tower icon on the inner rim of each pocket
+        if (p.type === 'diamond') {
+          const gemMesh = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.11, 0),
+            new THREE.MeshBasicMaterial({ color: p.hex })
+          );
+          gemMesh.position.set(Math.cos(aPocket) * 0.46, 0.11, Math.sin(aPocket) * 0.46);
+          rRotorGroup.add(gemMesh);
+        } else {
+          const miniStack = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.14, 16), goldCoinMat);
+          miniStack.position.set(Math.cos(aPocket) * 0.46, 0.09, Math.sin(aPocket) * 0.46);
+          rRotorGroup.add(miniStack);
+        }
+      }
+
+      // High-polish Chrome Steel Roulette Ball
+      const steelBallMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.16, 28, 28),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.99, roughness: 0.02, envMap: envMap })
+      );
+      steelBallMesh.position.set(0.80, 0.28, 0);
+      rouletteGroup.add(steelBallMesh);
+
+      // Dedicated Spotlight above the Gem Roulette
+      const rouletteSpotLight = new THREE.PointLight(0x38bdf8, 0.8, 9);
+      rouletteSpotLight.position.set(0, 2.2, 0.5);
+      rouletteGroup.add(rouletteSpotLight);
+
+      // 3. 3D Overhead LED Scoreboard Sign mounted directly above the Gem Roulette so the player 100% understands it!
+      const rSignCanvas = document.createElement('canvas');
+      rSignCanvas.width = 640; rSignCanvas.height = 280;
+      const rSignCtx = rSignCanvas.getContext('2d');
+      const rSignTex = new THREE.CanvasTexture(rSignCanvas);
+
+      function updateRouletteSignCanvas() {
+        rSignCtx.fillStyle = '#020617';
+        rSignCtx.fillRect(0, 0, 640, 280);
+
+        rSignCtx.strokeStyle = state.rouletteSpinning ? '#facc15' : '#38bdf8';
+        rSignCtx.lineWidth = 8;
+        rSignCtx.strokeRect(6, 6, 628, 268);
+
+        // Header
+        rSignCtx.fillStyle = state.rouletteSpinning ? '#facc15' : '#38bdf8';
+        rSignCtx.font = '900 30px "Noto Sans TC", sans-serif';
+        rSignCtx.textAlign = 'center';
+        rSignCtx.fillText('💎 寶石建塔輪盤 (GEM ROULETTE)', 320, 46);
+
+        // Live action status
+        rSignCtx.fillStyle = '#ffffff';
+        rSignCtx.font = '900 32px "Noto Sans TC", sans-serif';
+        rSignCtx.fillText(state.rouletteStatusText, 320, 100);
+
+        rSignCtx.fillStyle = '#fef08a';
+        rSignCtx.font = 'bold 22px "Noto Sans TC", sans-serif';
+        rSignCtx.fillText(state.rouletteSubText, 320, 140);
+
+        // Tower Build Energy Bar (0% ~ 100%)
+        const energyPct = Math.min(100, state.pendingTowerCoins);
+        rSignCtx.fillStyle = '#1e293b';
+        rSignCtx.fillRect(40, 166, 560, 38);
+        const barGrad = rSignCtx.createLinearGradient(40, 0, 600, 0);
+        barGrad.addColorStop(0, '#f59e0b');
+        barGrad.addColorStop(1, '#10b981');
+        rSignCtx.fillStyle = barGrad;
+        rSignCtx.fillRect(40, 166, (560 * energyPct) / 100, 38);
+        rSignCtx.strokeStyle = '#94a3b8';
+        rSignCtx.lineWidth = 3;
+        rSignCtx.strokeRect(40, 166, 560, 38);
+
+        rSignCtx.fillStyle = '#ffffff';
+        rSignCtx.font = '900 22px "Noto Sans TC", sans-serif';
+        rSignCtx.fillText(`🗼 建塔能量: ${energyPct}% (滿100%立即升起新幣塔)`, 320, 192);
+
+        // 5 Gems Progress row
+        rSignCtx.fillStyle = '#38bdf8';
+        rSignCtx.font = 'bold 22px "Noto Sans TC", sans-serif';
+        const gemIcons = Array.from({ length: 5 }, (_, i) => i < state.diamonds ? '💎' : '◇').join(' ');
+        rSignCtx.fillText(`寶石收集: ${gemIcons} (集滿5顆贏 ${state.superBonus} 票)`, 320, 246);
+
+        rSignTex.needsUpdate = true;
+      }
+      updateRouletteSignCanvas();
+
+      const rSignMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.4, 1.48),
+        new THREE.MeshBasicMaterial({ map: rSignTex })
+      );
+      rSignMesh.position.set(0.15, 1.55, -0.55);
+      rSignMesh.rotation.x = -0.32;
+      rouletteGroup.add(rSignMesh);
+
+      // ================================================================
+      // 5C. VERTICAL BACKBOARD & 3 INTERACTIVE 3D PRIZE WHEELS (活化中間三個圓形轉輪)
+      // ================================================================
+      const bbCanvas = document.createElement('canvas');
+      bbCanvas.width = 1024; bbCanvas.height = 1024;
+      const bbCtx = bbCanvas.getContext('2d');
+      const bbTex = new THREE.CanvasTexture(bbCanvas);
+
+      function updateBackboardCanvas() {
+        bbCtx.fillStyle = '#090d16';
+        bbCtx.fillRect(0, 0, 1024, 1024);
+
+        bbCtx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
+        bbCtx.lineWidth = 2;
+        for (let y = 64; y < 1024; y += 64) {
+          bbCtx.beginPath(); bbCtx.moveTo(0, y); bbCtx.lineTo(1024, y); bbCtx.stroke();
+        }
+
+        // Top Super Bonus Header
+        bbCtx.fillStyle = '#0f172a';
+        bbCtx.fillRect(240, 22, 544, 108);
+        bbCtx.strokeStyle = '#38bdf8';
+        bbCtx.lineWidth = 4;
+        bbCtx.strokeRect(240, 22, 544, 108);
+
+        bbCtx.fillStyle = '#facc15';
+        bbCtx.font = '900 25px Orbitron, "Noto Sans TC", sans-serif';
+        bbCtx.textAlign = 'center';
+        bbCtx.fillText(`💎 SUPER BONUS 彩池 [ ${state.superBonus} 票 ]`, 512, 60);
+
+        for (let d = 0; d < 5; d++) {
+          bbCtx.fillStyle = d < state.diamonds ? '#38bdf8' : '#1e293b';
+          bbCtx.beginPath();
+          bbCtx.arc(392 + d * 60, 100, 15, 0, Math.PI * 2);
+          bbCtx.fill();
+          bbCtx.strokeStyle = '#bae6fd';
+          bbCtx.lineWidth = 2;
+          bbCtx.stroke();
+        }
+
+        // 3 Columns 5-Step Ladder (Aligned with the 3 circular wheels & 3 reward boxes!)
+        const cols = [
+          { x: 240, steps: state.mageSteps, max: 5, col: '#facc15', nums: ['🌧️100金幣雨', '第4階', '第3階', '第2階', '第1階'] },
+          { x: 512, steps: state.godSteps,  max: 5, col: '#f43f5e', nums: ['🔥派對時間!', '第4階', '第3階', '第2階', '第1階'] },
+          { x: 784, steps: state.elfSteps,  max: 5, col: '#38bdf8', nums: ['🎟️贏30張票', '第4階', '第3階', '第2階', '第1階'] }
+        ];
+        cols.forEach((c) => {
+          const boxW = 196;
+          const boxH = 42;
+          for (let r = 0; r < c.max; r++) {
+            const stepIdx = c.max - 1 - r;
+            const lit = c.steps > stepIdx;
+            const y = 148 + r * (boxH + 6);
+            bbCtx.fillStyle = lit ? c.col : '#1e293b';
+            bbCtx.fillRect(c.x - boxW / 2, y, boxW, boxH);
+            bbCtx.strokeStyle = c.col;
+            bbCtx.lineWidth = lit ? 4 : 2;
+            bbCtx.strokeRect(c.x - boxW / 2, y, boxW, boxH);
+            bbCtx.fillStyle = lit ? '#020617' : '#cbd5e1';
+            bbCtx.font = '900 20px "Noto Sans TC", Orbitron, sans-serif';
+            bbCtx.fillText(c.nums[r], c.x, y + boxH / 2 + 7);
+          }
+        });
+
+        // Draw the 3 Reward Boxes prominently at y = 780..930 on the backboard canvas
+        const gates = [
+          { x: 240, col: '#facc15', bg: 'rgba(250, 204, 21, 0.20)', title: '🧙‍♂️ 左格：啟動法師輪', sub: state.backWheels[0].statusText },
+          { x: 512, col: '#f43f5e', bg: 'rgba(244, 63, 94, 0.24)',  title: '⚡ 中格：啟動天神輪', sub: state.backWheels[1].statusText },
+          { x: 784, col: '#38bdf8', bg: 'rgba(56, 189, 248, 0.20)', title: '🧚‍♀️ 右格：啟動精靈輪', sub: state.backWheels[2].statusText }
+        ];
+        gates.forEach(g => {
+          bbCtx.fillStyle = g.bg;
+          bbCtx.fillRect(g.x - 124, 780, 248, 150);
+          bbCtx.strokeStyle = g.col;
+          bbCtx.lineWidth = 7;
+          bbCtx.strokeRect(g.x - 124, 780, 248, 150);
+          bbCtx.fillStyle = '#ffffff';
+          bbCtx.font = '900 23px "Noto Sans TC", sans-serif';
+          bbCtx.fillText(g.title, g.x, 835);
+          bbCtx.fillStyle = g.col;
+          bbCtx.font = '900 20px "Noto Sans TC", sans-serif';
+          bbCtx.fillText(g.sub, g.x, 892);
+        });
+
+        bbTex.needsUpdate = true;
+      }
+      updateBackboardCanvas();
+
+      const backboardMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(8.4, 8.8),
+        new THREE.MeshBasicMaterial({ map: bbTex })
+      );
+      backboardMesh.position.set(0, 6.55, -3.55);
+      machineGroup.add(backboardMesh);
+
+      // Build 3 Real 3D Mechanical Spinning Prize Wheels (中間三個立體轉輪：進下方對應格立即高速旋轉抽獎！)
+      const backWheelMeshes = [];
+      const wheelPositions = [
+        { x: -2.22, y: 5.55 },
+        { x:  0.00, y: 5.65 },
+        { x:  2.22, y: 5.55 }
+      ];
+
+      function createBackWheelTexture(wObj, highlightSector = -1) {
+        const c = document.createElement('canvas');
+        c.width = 512; c.height = 512;
+        const ctx = c.getContext('2d');
+        renderBackWheelCanvas(ctx, wObj, highlightSector);
+        return { canvas: c, ctx, tex: new THREE.CanvasTexture(c) };
+      }
+
+      function renderBackWheelCanvas(ctx, wObj, highlightSector = -1) {
+        ctx.clearRect(0, 0, 512, 512);
+        const cx = 256, cy = 256, r = 244;
+
+        for (let i = 0; i < 6; i++) {
+          const sec = wObj.sectors[i];
+          // Sector 0 centered at top (-PI/2) so when angle = 0, Sector 0 is under the top pointer ▼!
+          const aCenter = -Math.PI / 2 + i * (Math.PI / 3);
+          const a0 = aCenter - Math.PI / 6;
+          const a1 = aCenter + Math.PI / 6;
+          const isLit = (i === highlightSector);
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, r, a0, a1);
+          ctx.closePath();
+          if (isLit) {
+            ctx.fillStyle = wObj.color;
+          } else {
+            ctx.fillStyle = (i % 2 === 0) ? '#0f172a' : '#1e293b';
+          }
+          ctx.fill();
+          ctx.strokeStyle = wObj.color;
+          ctx.lineWidth = 6;
+          ctx.stroke();
+
+          ctx.save();
+          ctx.translate(cx + Math.cos(aCenter) * 156, cy + Math.sin(aCenter) * 156);
+          ctx.rotate(aCenter + Math.PI / 2);
+          ctx.fillStyle = isLit ? '#020617' : '#ffffff';
+          ctx.font = '900 28px "Noto Sans TC", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(sec.label, 0, 0);
+          ctx.restore();
+        }
+
+        // Center Hub Circle
+        ctx.fillStyle = '#020617';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 78, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = wObj.color;
+        ctx.lineWidth = 7;
+        ctx.stroke();
+      }
+
+      state.backWheels.forEach((wObj, idx) => {
+        const wGroup = new THREE.Group();
+        wGroup.position.set(wheelPositions[idx].x, wheelPositions[idx].y, -3.44);
+        machineGroup.add(wGroup);
+
+        // Outer glowing 3D ring
+        const ringMat = new THREE.MeshBasicMaterial({ color: wObj.hex });
+        const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 16, 48), ringMat);
+        ringMesh.position.z = 0.04;
+        wGroup.add(ringMesh);
+
+        // Rotating Wheel Disc with 6 Prize Sectors
+        const texObj = createBackWheelTexture(wObj, 0);
+        const discMesh = new THREE.Mesh(
+          new THREE.CircleGeometry(0.92, 48),
+          new THREE.MeshBasicMaterial({ map: texObj.tex })
+        );
+        discMesh.position.z = 0.02;
+        wGroup.add(discMesh);
+
+        // Static Center Hub Label (does not rotate upside down!)
+        const hubCanvas = document.createElement('canvas');
+        hubCanvas.width = 256; hubCanvas.height = 256;
+        const hubCtx = hubCanvas.getContext('2d');
+        const hubTex = new THREE.CanvasTexture(hubCanvas);
+
+        function updateHubText(topLine, bottomLine, flash = false) {
+          hubCtx.clearRect(0, 0, 256, 256);
+          hubCtx.fillStyle = flash ? wObj.color : '#020617';
+          hubCtx.beginPath();
+          hubCtx.arc(128, 128, 120, 0, Math.PI * 2);
+          hubCtx.fill();
+          hubCtx.strokeStyle = '#ffffff';
+          hubCtx.lineWidth = 8;
+          hubCtx.stroke();
+
+          hubCtx.fillStyle = flash ? '#020617' : wObj.color;
+          hubCtx.font = '900 32px "Noto Sans TC", sans-serif';
+          hubCtx.textAlign = 'center';
+          hubCtx.textBaseline = 'middle';
+          hubCtx.fillText(topLine, 128, 102);
+
+          hubCtx.fillStyle = flash ? '#0f172a' : '#ffffff';
+          hubCtx.font = 'bold 26px "Noto Sans TC", sans-serif';
+          hubCtx.fillText(bottomLine, 128, 152);
+          hubTex.needsUpdate = true;
+        }
+        updateHubText(wObj.title.slice(0, 2), wObj.title.slice(3), false);
+
+        const hubMesh = new THREE.Mesh(
+          new THREE.CircleGeometry(0.32, 32),
+          new THREE.MeshBasicMaterial({ map: hubTex, transparent: true })
+        );
+        hubMesh.position.z = 0.07;
+        wGroup.add(hubMesh);
+
+        // 3D Gold Top Pointer (▼ 指針) at 12 o'clock
+        const pointerGeo = new THREE.ConeGeometry(0.13, 0.28, 4);
+        pointerGeo.rotateZ(Math.PI);
+        const pointerMesh = new THREE.Mesh(pointerGeo, goldCoinMat);
+        pointerMesh.position.set(0, 0.96, 0.09);
+        wGroup.add(pointerMesh);
+
+        backWheelMeshes.push({
+          wGroup,
+          discMesh,
+          ringMat,
+          texObj,
+          updateHubText
+        });
+      });
+
+      // 3 Physical 3D Glowing Reward Chute Boxes jutting out in front of the backboard at Y = 3.52, Z = -3.26
+      const rewardBoxGroup = new THREE.Group();
+      const rewardBoxConfigs = [
+        { x: -2.22, color: 0xfacc15 },
+        { x:  0.00, color: 0xf43f5e },
+        { x:  2.22, color: 0x38bdf8 }
+      ];
+      const rewardBoxMeshes = [];
+      rewardBoxConfigs.forEach(cfg => {
+        const boxHolder = new THREE.Group();
+        boxHolder.position.set(cfg.x, 3.52, -3.26);
+
+        const frameMat = new THREE.MeshBasicMaterial({ color: cfg.color });
+        const railL = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.15, 0.42), frameMat);
+        railL.position.set(-0.96, 0, 0);
+        boxHolder.add(railL);
+
+        const railR = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.15, 0.42), frameMat);
+        railR.position.set(0.96, 0, 0);
+        boxHolder.add(railR);
+
+        const railB = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.12, 0.44), frameMat);
+        railB.position.set(0, -0.56, 0);
+        boxHolder.add(railB);
+
+        const visorMat = new THREE.MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.22 });
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.85, 0.04), visorMat);
+        visor.position.set(0, -0.10, 0.20);
+        boxHolder.add(visor);
+
+        rewardBoxGroup.add(boxHolder);
+        rewardBoxMeshes.push({ group: boxHolder, visorMat, baseColor: cfg.color });
+      });
+      machineGroup.add(rewardBoxGroup);
+
+      function flashRewardBox(idx) {
+        const box = rewardBoxMeshes[idx];
+        if (!box) return;
+        box.visorMat.opacity = 0.82;
+        setTimeout(() => { box.visorMat.opacity = 0.22; }, 320);
+      }
+
+      const leftNozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.17, 1.15, 16), brushedSteelMat);
+      leftNozzle.position.set(-1.35, 10.25, -3.35);
+      machineGroup.add(leftNozzle);
+
+      const rightNozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.17, 1.15, 16), brushedSteelMat);
+      rightNozzle.position.set(1.35, 10.25, -3.35);
+      machineGroup.add(rightNozzle);
+
+      const pins = [];
+      const PIN_R = 0.055;
+      const pinGeo = new THREE.CylinderGeometry(PIN_R, PIN_R, 0.4, 12);
+      pinGeo.rotateX(Math.PI / 2);
+      const pinRows = [
+        { y: 8.95, xs: [-2.55, -0.85, 0.85, 2.55] },
+        { y: 8.05, xs: [-3.3, -1.65, 0.0, 1.65, 3.3] },
+        { y: 7.15, xs: [-2.55, -0.85, 0.85, 2.55] },
+        { y: 6.35, xs: [-3.3, -1.35, 0.0, 1.35, 3.3] },
+        { y: 4.45, xs: [-3.3, -1.15, 1.15, 3.3] }
+      ];
+      pinRows.forEach(r => {
+        r.xs.forEach(x => {
+          const m = new THREE.Mesh(pinGeo, brushedSteelMat);
+          m.position.set(x, r.y, -3.38);
+          machineGroup.add(m);
+          pins.push({ x, y: r.y, r: PIN_R });
+        });
+      });
+
+      // ================================================================
+      // 6. COLLISION-FREE RIGID-BODY COIN & SINGLE-TOWER PHYSICS ENGINE
+      // ================================================================
+      // FIXES APPLIED:
+      // 1. ZERO WALL CLIPPING: Every coin on the upper & lower decks is strictly clamped inside `[-LOWER_MAX_COIN_X, +LOWER_MAX_COIN_X]` (`±3.49`)
+      //    at the end of every substep AND every PBD contact iteration. Coins NEVER clip through the left/right walls or fall off the sides!
+      // 2. ZERO TOWER COIN CLIPPING:
+      //    - In a 6-coin ring, adjacent coin centers are `1.0 * ringR` apart. We set `ringR = COIN_R * 2.04` (`0.755`) so the 6 coins in each layer
+      //      never interpenetrate!
+      //    - Vertical layer spacing is `COIN_H * 1.02` so vertical layers never clip into each other even when the tower tilts!
+      //    - Lower deck coins are strictly excluded from the tower's outer radius (`ringR + COIN_R * 2.04 = 1.51`) so base coins never clip into the tower!
+      //    - When a tower collapses, its coins land across multiple vertical stack layers (`stackY = 0, 1, 2, 3 * COIN_H`) instead of overlapping on a single plane!
+
+      const MAX_COINS = 2400;
+      const silverInstMesh = new THREE.InstancedMesh(coinGeo, silverCoinMat, MAX_COINS);
+      silverInstMesh.castShadow = true;
+      silverInstMesh.receiveShadow = true;
+      silverInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      machineGroup.add(silverInstMesh);
+
+      const goldInstMesh = new THREE.InstancedMesh(coinGeo, goldCoinMat, MAX_COINS);
+      goldInstMesh.castShadow = true;
+      goldInstMesh.receiveShadow = true;
+      goldInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      machineGroup.add(goldInstMesh);
+
+      const coins = [];
+      const towers = [];
+
+      function spawnPhysicalCoin(opts) {
+        if (coins.length >= MAX_COINS - 24) {
+          const idx = coins.findIndex(c => c.mode === 'lower' && c.z < 2.2);
+          if (idx !== -1) coins.splice(idx, 1);
+        }
+        const coin = {
+          x: opts.x || 0,
+          y: opts.y || 0,
+          z: opts.z || 0,
+          vx: opts.vx || 0,
+          vy: opts.vy || 0,
+          vz: opts.vz || 0,
+          rx: opts.rx || 0,
+          ry: opts.ry || Math.random() * Math.PI * 2,
+          rz: opts.rz || 0,
+          wx: opts.wx || 0,
+          wy: opts.wy || 0,
+          wz: opts.wz || 0,
+          isGold: !!opts.isGold,
+          mode: opts.mode || 'lower',
+          TargetDeck: opts.TargetDeck || 'lower',
+          towerId: opts.towerId || null,
+          layerIdx: opts.layerIdx || 0,
+          localX: opts.localX || 0,
+          localZ: opts.localZ || 0,
+          stackY: opts.stackY || 0,
+          stallFrames: 0,
+          scored: false
+        };
+        coins.push(coin);
+        return coin;
+      }
+
+      // Exact non-overlapping 6-petal ring geometry:
+      // Chord length for 60° (pi/3) is 1.0 * ringR. Since coin diameter is 2 * COIN_R, ringR MUST be >= 2.02 * COIN_R!
+      const TOWER_RING_R = COIN_R * 2.04; // 0.755
+      const TOWER_LAYER_H = COIN_H * 1.02;
+
+      let nextTowerId = 1;
+      function buildPhysicalCoinTower(centerX, centerZ, numLayers = 52, ticketVal = 80, isRising = false) {
+        const id = nextTowerId++;
+        const startY = isRising ? -numLayers * TOWER_LAYER_H : LOWER_Y;
+
+        // Clear any lower deck coins inside the elevator footprint when rising a new tower so they never clip into the rising tower!
+        const clearRadius = TOWER_RING_R + COIN_R * 2.05;
+        for (let i = 0; i < coins.length; i++) {
+          const c = coins[i];
+          if (c.mode === 'lower') {
+            const dx = c.x - centerX;
+            const dz = c.z - centerZ;
+            const d = Math.hypot(dx, dz);
+            if (d < clearRadius) {
+              const ang = Math.atan2(dz, dx);
+              c.x = Math.max(-LOWER_MAX_COIN_X, Math.min(LOWER_MAX_COIN_X, centerX + Math.cos(ang) * (clearRadius + 0.05)));
+              c.z = Math.min(LOWER_Z_FRONT - 0.1, centerZ + Math.sin(ang) * (clearRadius + 0.05));
+            }
+          }
+        }
+
+        const towerObj = {
+          id,
+          x: centerX,
+          y: startY,
+          z: centerZ,
+          vx: 0,
+          vz: 0,
+          tiltX: 0,
+          tiltZ: 0,
+          angVelX: 0,
+          angVelZ: 0,
+          numLayers,
+          ticketVal,
+          isRising,
+          collapsed: false,
+          layerShearZ: new Float32Array(numLayers)
+        };
+        towers.push(towerObj);
+
+        for (let l = 0; l < numLayers; l++) {
+          const angleOffset = (l % 2) * (Math.PI / 6);
+          const isLayerGold = (l >= numLayers - 4) || (l % 8 === 0);
+          for (let p = 0; p < 6; p++) {
+            const ang = (p / 6) * Math.PI * 2 + angleOffset;
+            const lx = Math.cos(ang) * TOWER_RING_R;
+            const lz = Math.sin(ang) * TOWER_RING_R;
+            spawnPhysicalCoin({
+              x: centerX + lx,
+              y: startY + (l + 0.5) * TOWER_LAYER_H,
+              z: centerZ + lz,
+              ry: ang,
+              isGold: isLayerGold,
+              mode: 'tower',
+              towerId: id,
+              layerIdx: l,
+              localX: lx,
+              localZ: lz
+            });
+          }
+        }
+        updateHUD();
+        return towerObj;
+      }
+
+      function fractureTowerIntoCoins(tower, fromLayer = 0, impulseVz = 0.09) {
+        for (let i = 0; i < coins.length; i++) {
+          const c = coins[i];
+          if (c.mode === 'tower' && c.towerId === tower.id && c.layerIdx >= fromLayer) {
+            c.mode = 'freefall';
+            c.TargetDeck = 'lower';
+            c.towerId = null;
+            // Assign staggered 3D stack heights (0 to 3 layers) so collapsed tower coins form a realistic 3D mound without 2D clipping!
+            c.stackY = (c.layerIdx % 4) * COIN_H;
+            const heightRatio = c.layerIdx / Math.max(1, tower.numLayers);
+            const h = c.layerIdx * TOWER_LAYER_H;
+            c.vx = (c.localX * 0.05) + (Math.random() - 0.5) * 0.06;
+            c.vz = tower.angVelX * h + impulseVz * (0.6 + heightRatio * 1.1) + (c.localZ * 0.05) + (Math.random() - 0.5) * 0.05;
+            c.vy = 0.02 + Math.random() * 0.04;
+            c.wx = tower.angVelX * 1.4 + (Math.random() - 0.5) * 0.18;
+            c.wz = (Math.random() - 0.5) * 0.18;
+          }
+        }
+        if (fromLayer === 0 && !tower.collapsed) {
+          tower.collapsed = true;
+          sound.playHeavyThud(1.0);
+          for (let k = 0; k < 10; k++) {
+            setTimeout(() => sound.playMetalClink(0.9, 0.85 + Math.random() * 0.35), k * 35);
+          }
+          showFloatingText(`💥 錢幣塔崩塌傾瀉！硬幣落入前槽每 5 枚出 1 張彩票！`, 'text-amber-300', 50, 35);
+          const idx = towers.indexOf(tower);
+          if (idx !== -1) towers.splice(idx, 1);
+          updateHUD();
+        }
+      }
+
+      // Initialize Playfield with 1 Central Coin Tower & Full Semicircular Recess Coin Coverage
+      function initPlayfield() {
+        const minGap = COIN_R * 2.04;
+
+        // 1. Upper Deck Coin Bed (Covers both wings AND the middle area behind the semicircular arc!)
+        const initPusherZ = PUSHER_CENTER_Z;
+        for (let localZ = -0.52; localZ <= 1.75; localZ += minGap * 0.92) {
+          const rowIdx = Math.round((localZ + 0.52) / (minGap * 0.92));
+          const xShift = (rowIdx % 2 === 0) ? 0 : COIN_R * 1.02;
+          for (let x = -3.05 + xShift; x <= 3.05; x += minGap) {
+            const worldZ = initPusherZ + localZ;
+            const maxAllowedZ = getPusherFrontZAtX(x, initPusherZ) - COIN_R * 0.35;
+            if (worldZ > maxAllowedZ) continue;
+            spawnPhysicalCoin({
+              x: x,
+              y: UPPER_Y + COIN_H * 0.5,
+              z: worldZ,
+              mode: 'upper',
+              isGold: Math.random() < 0.18
+            });
+          }
+        }
+
+        // 2. Lower Deck Coin Bed (Starts right in front of the curved semicircular pusher profile at max stroke, so middle recess pushes coins too!)
+        const mainTowerPos = { x: 0.0, z: 3.70 };
+        const towerClearR = TOWER_RING_R + COIN_R * 2.15;
+        const maxExtendedPusherZ = PUSHER_CENTER_Z + PUSHER_STROKE;
+
+        for (let z = 0.25; z <= LOWER_Z_FRONT - 0.10; z += minGap * 0.92) {
+          const rowIdx = Math.round(z / (minGap * 0.92));
+          const xShift = (rowIdx % 2 === 0) ? 0 : COIN_R * 1.02;
+          for (let x = -3.32 + xShift; x <= 3.32; x += minGap) {
+            const minStartZ = getPusherFrontZAtX(x, maxExtendedPusherZ) + COIN_R + 0.06;
+            if (z < minStartZ) continue;
+            if (Math.hypot(x - mainTowerPos.x, z - mainTowerPos.z) < towerClearR) continue;
+            spawnPhysicalCoin({
+              x: x,
+              y: LOWER_Y + COIN_H * 0.5,
+              z: z,
+              mode: 'lower',
+              isGold: Math.random() < 0.18
+            });
+          }
+        }
+
+        // 3. Build 1 Focused, Zero-Clipping Central Coin Tower (46 Layers = 276 Coins, height calibrated so the 3 reward boxes behind it stay 100% visible!)
+        buildPhysicalCoinTower(mainTowerPos.x, mainTowerPos.z, 46, 70, false);
+      }
+
+      // ================================================================
+      // 7. PHYSICS SOLVER (嚴格防穿模、無側漏、5幣出1票感應)
+      // ================================================================
+      let swingAngle = 0;
+      let pusherZ = PUSHER_CENTER_Z;
+      let prevPusherZ = PUSHER_CENTER_Z;
+      let ceremonySavedCam = 'full';
+      let lastCeremonyTickTime = 0;
+
+      function stepPhysics(now) {
+        // ==================== 建塔儀式模式 (PAUSED GAMEPLAY TOWER BUILDING CEREMONY) ====================
+        // When a tower is rising inside the rear U-shaped recess (or being pushed out of the recess),
+        // the entire pusher & pinboard game pauses so the player can watch the tower slowly rotate and grow!
+        const risingTower = towers.find(t => t.isRising || t.isEjecting);
+        if (risingTower) {
+          // Retract upper pusher smoothly to -2.35 so the U-shaped recess is wide open around (0, 0.28)
+          pusherZ += (-2.35 - pusherZ) * 0.12;
+          prevPusherZ = pusherZ;
+          pusherGroup.position.z = pusherZ;
+
+          // Flashing ceremony lights on the U-recess elevator
+          const pulse = 0.5 + 0.5 * Math.sin(now * 0.015);
+          ceremonySpotLight.intensity = 2.8;
+          ceremonySpotLight.color.setHSL((now * 0.0005) % 1.0, 0.9, 0.6);
+          ceremonyRingMat.color.setHSL((now * 0.0008 + 0.3) % 1.0, 1.0, 0.65);
+
+          if (risingTower.isRising) {
+            // Slow, ceremonial rotating rise from beneath the U-shaped recess (~7.5 seconds for a full tower)
+            const totalTravel = risingTower.numLayers * TOWER_LAYER_H;
+            const riseStep = Math.max(0.016, totalTravel / 420);
+            risingTower.y += riseStep;
+            risingTower.rotY = (risingTower.rotY || 0) + 0.065;
+            elevatorDiscMesh.rotation.y = risingTower.rotY;
+
+            // Camera slowly pans upward following the growing crown of the tower
+            const progress = Math.min(1.0, (risingTower.y + totalTravel) / totalTravel);
+            const crownY = Math.max(0.5, risingTower.y + totalTravel);
+            targetCamLook.set(0, Math.min(4.2, crownY * 0.65 + 0.8), 0.4);
+            targetCamPos.set(Math.sin(now * 0.0006) * 1.6, 4.2 + progress * 2.4, 8.8 + progress * 1.6);
+
+            if (now - lastCeremonyTickTime > 95) {
+              lastCeremonyTickTime = now;
+              sound.playTowerBuildTick(progress);
+            }
+
+            if (risingTower.y >= LOWER_Y) {
+              risingTower.y = LOWER_Y;
+              risingTower.isRising = false;
+              risingTower.isEjecting = true;
+              sound.playCeremonyComplete();
+            }
+          } else if (risingTower.isEjecting) {
+            // Once fully grown inside the semicircular recess (z = 0.55), the semicircular pusher wall smoothly pushes
+            // the new tower forward out of the recess to z = 2.45 onto the main lower coin bed!
+            risingTower.z += 0.028;
+            pusherZ = Math.min(PUSHER_CENTER_Z + PUSHER_STROKE, risingTower.z - (PUSHER_HALF_Z - RECESS_R) - TOWER_RING_R - COIN_R);
+            pusherGroup.position.z = pusherZ;
+            prevPusherZ = pusherZ;
+
+            // Push any lower deck coins in front of the emerging tower cleanly forward so nothing clips!
+            const clearR = TOWER_RING_R + COIN_R * 2.04;
+            for (let i = 0; i < coins.length; i++) {
+              const c = coins[i];
+              if (c.mode === 'lower') {
+                const dx = c.x - risingTower.x;
+                const dz = c.z - risingTower.z;
+                const d = Math.hypot(dx, dz);
+                if (d < clearR && d > 1e-4) {
+                  c.x = Math.max(-LOWER_MAX_COIN_X, Math.min(LOWER_MAX_COIN_X, risingTower.x - (dx / d) * clearR));
+                  c.z = Math.min(LOWER_Z_FRONT - 0.05, risingTower.z + Math.abs(dz / d) * clearR + 0.04);
+                }
+              }
+            }
+
+            if (risingTower.z >= 2.35) {
+              risingTower.z = 2.35;
+              risingTower.isEjecting = false;
+              state.elevatorActive = false;
+              ceremonySpotLight.intensity = 0.0;
+              ceremonyRingMat.color.setHex(0x38bdf8);
+              applyCamPreset(ceremonySavedCam);
+              updateHUD();
+            }
+          }
+
+          // Update coordinates of the coins in the rising/ejecting tower (with live rotation!)
+          for (let i = 0; i < coins.length; i++) {
+            const c = coins[i];
+            if (c.mode === 'tower' && c.towerId === risingTower.id) {
+              const h = (c.layerIdx + 0.5) * TOWER_LAYER_H;
+              const rot = risingTower.rotY || 0;
+              const cosR = Math.cos(rot), sinR = Math.sin(rot);
+              const rx = c.localX * cosR - c.localZ * sinR;
+              const rz = c.localX * sinR + c.localZ * cosR;
+              c.x = risingTower.x + rx;
+              c.y = risingTower.y + h;
+              c.z = risingTower.z + rz;
+              c.ry = Math.atan2(rz, rx);
+            }
+          }
+          return; // Pause all other physics while the tower building ceremony is playing!
+        }
+
+        pusherZ = PUSHER_CENTER_Z + Math.sin(now * 0.0022) * PUSHER_STROKE;
+        const pusherVelZ = pusherZ - prevPusherZ;
+        prevPusherZ = pusherZ;
+        pusherGroup.position.z = pusherZ;
+        const pusherFrontZ = pusherZ + PUSHER_HALF_Z;
+
+        // 1. Pinboard Falling Coins
+        const SUBSTEPS = 4;
+        const minPinDist = COIN_R + PIN_R;
+        const minPinDistSq = minPinDist * minPinDist;
+
+        for (let s = 0; s < SUBSTEPS; s++) {
+          for (let i = coins.length - 1; i >= 0; i--) {
+            const c = coins[i];
+            if (c.mode !== 'pinboard') continue;
+
+            c.vy -= 0.0082 / SUBSTEPS;
+            c.vx *= 0.996;
+            c.x += c.vx / SUBSTEPS;
+            c.y += c.vy / SUBSTEPS;
+            c.rz += c.wz / SUBSTEPS;
+
+            if (c.x < -3.55) { c.x = -3.55; c.vx = Math.abs(c.vx) * 0.7; }
+            if (c.x >  3.55) { c.x =  3.55; c.vx = -Math.abs(c.vx) * 0.7; }
+
+            for (let p = 0; p < pins.length; p++) {
+              const pin = pins[p];
+              let dx = c.x - pin.x;
+              let dy = c.y - pin.y;
+              const dSq = dx * dx + dy * dy;
+              if (dSq < minPinDistSq) {
+                if (Math.abs(dx) < 0.04) {
+                  dx = (Math.random() < 0.5 ? -1 : 1) * 0.06;
+                }
+                const dist = Math.hypot(dx, dy) || 0.01;
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const overlap = minPinDist - dist + 0.005;
+                c.x += nx * overlap;
+                c.y += ny * overlap;
+
+                const vn = c.vx * nx + c.vy * ny;
+                if (vn < 0) {
+                  const restitution = 0.52;
+                  const j = -(1 + restitution) * vn;
+                  c.vx += j * nx + (nx >= 0 ? 0.015 : -0.015);
+                  c.vy += j * ny;
+                  c.wz += nx * 0.28;
+                  if (s === 0) sound.playMetalClink(Math.min(1, Math.abs(vn) * 10), 1.15);
+                }
+              }
+            }
+
+            if (s === 0) {
+              if (Math.abs(c.vy) < 0.025) {
+                c.stallFrames = (c.stallFrames || 0) + 1;
+                if (c.stallFrames > 3) {
+                  c.vy = -0.09;
+                  c.vx += (Math.random() < 0.5 ? -1 : 1) * 0.07;
+                  c.stallFrames = 0;
+                }
+              } else {
+                c.stallFrames = 0;
+              }
+            }
+
+            if (c.y <= 3.35) {
+              triggerChuteSensor(c.x);
+              c.mode = 'freefall';
+              c.TargetDeck = 'upper';
+              c.y = UPPER_Y + 0.55;
+              c.x = Math.max(-UPPER_MAX_COIN_X + 0.2, Math.min(UPPER_MAX_COIN_X - 0.2, c.x));
+              c.z = BACK_SCRAPER_Z + COIN_R + 0.12 + Math.random() * 0.35;
+              c.rx = 0.2;
+              c.rz = 0;
+              c.vx = (Math.random() - 0.5) * 0.02;
+              c.vy = -0.06;
+              c.vz = 0.02;
+              c.wx = 0.1;
+              c.wz = 0;
+            }
+          }
+        }
+
+        // 2. Upper & Lower Deck Rigid-Body Solver
+        const upperCoins = [];
+        const lowerCoins = [];
+
+        for (let i = 0; i < coins.length; i++) {
+          const c = coins[i];
+          if (c.mode === 'upper') {
+            c.z += pusherVelZ;
+            c.x += c.vx;
+            c.z += c.vz;
+            c.vx *= 0.55;
+            c.vz *= 0.55;
+            if (Math.abs(c.vx) < 0.0004) c.vx = 0;
+            if (Math.abs(c.vz) < 0.0004) c.vz = 0;
+
+            if (c.z < BACK_SCRAPER_Z + COIN_R) {
+              c.z = BACK_SCRAPER_Z + COIN_R;
+            }
+            // Strict side boundary clamp on Upper Deck
+            if (c.x < -UPPER_MAX_COIN_X) { c.x = -UPPER_MAX_COIN_X; c.vx = 0; }
+            if (c.x >  UPPER_MAX_COIN_X) { c.x =  UPPER_MAX_COIN_X; c.vx = 0; }
+
+            upperCoins.push(c);
+          } else if (c.mode === 'lower') {
+            c.x += c.vx;
+            c.z += c.vz;
+            c.vx *= 0.55;
+            c.vz *= 0.55;
+            if (Math.abs(c.vx) < 0.0004) c.vx = 0;
+            if (Math.abs(c.vz) < 0.0004) c.vz = 0;
+
+            // Exact Semicircular Pusher Front Wall Collision on Lower Deck:
+            // Both the straight side wings AND the curved semicircular central recess physically push lower-deck coins forward!
+            const curvedWallZ = getPusherFrontZAtX(c.x, pusherZ) + COIN_R;
+            if (c.z < curvedWallZ) {
+              c.z = curvedWallZ;
+            }
+
+            // Strict side boundary clamp on Lower Deck (100% prevents wall clipping!)
+            if (c.x < -LOWER_MAX_COIN_X) { c.x = -LOWER_MAX_COIN_X; c.vx = 0; }
+            if (c.x >  LOWER_MAX_COIN_X) { c.x =  LOWER_MAX_COIN_X; c.vx = 0; }
+
+            lowerCoins.push(c);
+          }
+        }
+
+        // Iterative Contact Resolution with Strict Inside-Wall Clamping on Every Iteration!
+        const minCoinDist = COIN_R * 2.01;
+        const minCoinDistSq = minCoinDist * minCoinDist;
+
+        function solveDeckContacts(list, isLower) {
+          const maxX = isLower ? LOWER_MAX_COIN_X : UPPER_MAX_COIN_X;
+          list.sort((a, b) => a.z - b.z);
+          const len = list.length;
+          for (let iter = 0; iter < 4; iter++) {
+            for (let i = 0; i < len; i++) {
+              const a = list[i];
+              for (let j = i + 1; j < len; j++) {
+                const b = list[j];
+                if (b.z - a.z > minCoinDist) break;
+                if (Math.abs(a.stackY - b.stackY) > COIN_H * 0.55) continue;
+                const dx = b.x - a.x;
+                const dz = b.z - a.z;
+                const dSq = dx * dx + dz * dz;
+                if (dSq < minCoinDistSq && dSq > 1e-6) {
+                  const d = Math.sqrt(dSq);
+                  const overlap = (minCoinDist - d);
+                  const nx = dx / d;
+                  const nz = dz / d;
+
+                  // If coins are compressed against the side walls or tower, allow natural shingling onto a 2nd/3rd layer (`stackY`) so they NEVER clip into each other!
+                  if (isLower && overlap > 0.055 && a.stackY === b.stackY && a.stackY < COIN_H * 2 && Math.random() < 0.04) {
+                    b.stackY += COIN_H;
+                    b.y = LOWER_Y + COIN_H * 0.5 + b.stackY;
+                    continue;
+                  }
+
+                  a.x -= nx * overlap * 0.40;
+                  a.z -= nz * overlap * 0.30;
+                  b.x += nx * overlap * 0.60;
+                  b.z += nz * overlap * 0.70;
+
+                  // Immediately enforce solid side walls inside the PBD loop so no coin ever penetrates a side wall!
+                  if (a.x < -maxX) a.x = -maxX;
+                  if (a.x >  maxX) a.x =  maxX;
+                  if (b.x < -maxX) b.x = -maxX;
+                  if (b.x >  maxX) b.x =  maxX;
+
+                  if (!isLower && a.z < BACK_SCRAPER_Z + COIN_R) {
+                    const fix = (BACK_SCRAPER_Z + COIN_R) - a.z;
+                    a.z += fix;
+                    b.z += fix * 0.85;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        solveDeckContacts(upperCoins, false);
+        solveDeckContacts(lowerCoins, true);
+
+        // 3A. Strict Tower-to-Tower Rigid-Body Collision (塔與塔之間絕對不穿模，包含傾斜頂部包絡半徑！)
+        if (towers.length > 1) {
+          towers.sort((a, b) => a.z - b.z);
+          for (let iter = 0; iter < 4; iter++) {
+            for (let i = 0; i < towers.length; i++) {
+              for (let j = i + 1; j < towers.length; j++) {
+                const ta = towers[i];
+                const tb = towers[j];
+                const taTopLean = Math.abs(Math.sin(ta.tiltX)) * (ta.numLayers * TOWER_LAYER_H) + Math.abs(ta.layerShearZ[ta.numLayers - 1] || 0);
+                const tbTopLean = Math.abs(Math.sin(tb.tiltX)) * (tb.numLayers * TOWER_LAYER_H) + Math.abs(tb.layerShearZ[tb.numLayers - 1] || 0);
+                const minTowerDist = (TOWER_RING_R + COIN_R) * 2.08 + Math.max(taTopLean, tbTopLean) * 0.65;
+                const dx = tb.x - ta.x;
+                const dz = tb.z - ta.z;
+                const dist = Math.hypot(dx, dz) || 0.001;
+                if (dist < minTowerDist) {
+                  const overlap = minTowerDist - dist;
+                  const nx = dx / dist;
+                  const nz = dz / dist;
+                  // Rear tower pushes front tower forward; neither tower can ever penetrate the other!
+                  ta.x = Math.max(-LOWER_MAX_COIN_X + TOWER_RING_R + COIN_R, Math.min(LOWER_MAX_COIN_X - TOWER_RING_R - COIN_R, ta.x - nx * overlap * 0.35));
+                  ta.z = Math.max(PUSHER_MAX_FRONT_Z + TOWER_RING_R + COIN_R, ta.z - nz * overlap * 0.25);
+                  tb.x = Math.max(-LOWER_MAX_COIN_X + TOWER_RING_R + COIN_R, Math.min(LOWER_MAX_COIN_X - TOWER_RING_R - COIN_R, tb.x + nx * overlap * 0.65));
+                  tb.z += nz * overlap * 0.75;
+                }
+              }
+            }
+          }
+        }
+
+        // 3B. Heavy Physical Coin Towers (Strict Non-Clipping Base Barrier & Realistic Resistance)
+        for (let tIdx = towers.length - 1; tIdx >= 0; tIdx--) {
+          const t = towers[tIdx];
+          if (t.isRising) {
+            t.y += 0.065;
+            elevatorDiscMesh.rotation.y += 0.085;
+            if (t.y >= LOWER_Y) {
+              t.y = LOWER_Y;
+              t.isRising = false;
+              state.elevatorActive = false;
+              showFloatingText(`🗼 ${t.numLayers}層 新錢幣塔升起完成！`, 'text-emerald-300', 50, 36);
+              updateHUD();
+            }
+          } else {
+            // Exact outer radius of the 6-coin ring is `TOWER_RING_R + COIN_R`.
+            // Another coin of radius `COIN_R` touches the outside of the tower at `TOWER_RING_R + 2 * COIN_R`!
+            const minTowerContactDist = TOWER_RING_R + COIN_R * 2.02;
+            let contactOverlapZ = 0;
+            let contactOverlapX = 0;
+
+            for (let i = 0; i < lowerCoins.length; i++) {
+              const lc = lowerCoins[i];
+              const dx = t.x - lc.x;
+              const dz = t.z - lc.z;
+              const dist = Math.hypot(dx, dz);
+              if (dist < minTowerContactDist && dist > 1e-4) {
+                const overlap = minTowerContactDist - dist;
+                const nx = dx / dist;
+                const nz = dz / dist;
+                // Strictly push the lower coin outside `minTowerContactDist` so it NEVER clips into the tower base coins!
+                lc.x = Math.max(-LOWER_MAX_COIN_X, Math.min(LOWER_MAX_COIN_X, t.x - nx * minTowerContactDist));
+                lc.z = t.z - nz * minTowerContactDist;
+
+                if (nz > 0.25 && overlap > 0.008) {
+                  contactOverlapZ += nz * overlap;
+                  contactOverlapX += nx * overlap;
+                }
+              }
+            }
+
+            const towerMassResistance = 0.036 * (36 / t.numLayers);
+            if (contactOverlapZ > 0.014) {
+              const pushStepZ = (contactOverlapZ - 0.014) * towerMassResistance;
+              const pushStepX = contactOverlapX * towerMassResistance * 0.35;
+              t.z += Math.min(0.016, pushStepZ);
+              t.x = Math.max(-LOWER_MAX_COIN_X + TOWER_RING_R + COIN_R, Math.min(LOWER_MAX_COIN_X - TOWER_RING_R - COIN_R, t.x + pushStepX));
+              t.angVelX += pushStepZ * 0.22;
+            }
+
+            const edgeCreep = Math.max(0, t.z - (LOWER_Z_FRONT - 0.35));
+            const comOverhang = t.z - (LOWER_Z_FRONT + 0.12);
+
+            if (comOverhang > 0) {
+              t.angVelX += comOverhang * 0.012 + 0.0025;
+              t.tiltX += t.angVelX;
+            } else {
+              const targetLean = (edgeCreep / 0.47) * 0.15;
+              t.angVelX += (targetLean - t.tiltX) * 0.12;
+              t.angVelX *= 0.80;
+              t.tiltX += t.angVelX;
+            }
+
+            t.angVelZ *= 0.82;
+            t.tiltZ += t.angVelZ;
+
+            for (let l = 0; l < t.numLayers; l++) {
+              const ratio = l / t.numLayers;
+              t.layerShearZ[l] = Math.pow(ratio, 1.45) * t.tiltX * 0.72;
+            }
+
+            if (t.tiltX > 0.42) {
+              fractureTowerIntoCoins(t, 0, 0.11);
+              continue;
+            }
+          }
+
+          for (let i = 0; i < coins.length; i++) {
+            const c = coins[i];
+            if (c.mode === 'tower' && c.towerId === t.id) {
+              const h = (c.layerIdx + 0.5) * TOWER_LAYER_H;
+              const shearZ = t.layerShearZ[c.layerIdx] || 0;
+              c.x = t.x + c.localX + Math.sin(t.tiltZ) * h;
+              c.y = t.y + h * Math.cos(t.tiltX) - c.localZ * Math.sin(t.tiltX);
+              c.z = t.z + c.localZ * Math.cos(t.tiltX) + h * Math.sin(t.tiltX) + shearZ;
+              c.rx = t.tiltX;
+              c.rz = t.tiltZ;
+            }
+          }
+        }
+
+        // 4. Edge Overhang Tipping & Freefall Rigid-Body Physics (Every 5 Dropped Coins = 1 Ticket!)
+        for (let i = coins.length - 1; i >= 0; i--) {
+          const c = coins[i];
+
+          const localFrontEdgeZ = getPusherFrontZAtX(c.x, pusherZ);
+          if (c.mode === 'upper' && c.z > localFrontEdgeZ + COIN_R * 0.2) {
+            c.mode = 'freefall';
+            c.TargetDeck = 'lower';
+            c.vy = -0.015;
+            c.vz = Math.max(0.025, pusherVelZ + 0.02);
+            c.wx = 0.18 + Math.random() * 0.12;
+          }
+
+          // Lower Deck coins ONLY fall off the FRONT edge (`z > LOWER_Z_FRONT + COIN_R * 0.25`) — NEVER through the side walls!
+          if (c.mode === 'lower') {
+            if (c.z > LOWER_Z_FRONT + COIN_R * 0.25) {
+              c.mode = 'freefall';
+              c.TargetDeck = 'abyss';
+              c.vy = -0.02;
+              c.vz = Math.max(0.035, c.vz + 0.025);
+              c.wx = 0.24 + Math.random() * 0.15;
+            }
+          }
+
+          if (c.mode === 'freefall') {
+            c.vy -= 0.0105;
+            c.x += c.vx;
+            c.y += c.vy;
+            c.z += c.vz;
+            c.rx += c.wx;
+            c.ry += c.wy;
+            c.rz += c.wz;
+
+            // Keep airborne coins strictly inside the solid side walls!
+            const wallLimit = c.TargetDeck === 'upper' ? UPPER_MAX_COIN_X : LOWER_MAX_COIN_X;
+            if (c.x < -wallLimit) { c.x = -wallLimit; c.vx = Math.abs(c.vx) * 0.4; }
+            if (c.x >  wallLimit) { c.x =  wallLimit; c.vx = -Math.abs(c.vx) * 0.4; }
+
+            if (c.TargetDeck === 'upper') {
+              const targetY = UPPER_Y + COIN_H * 0.5;
+              if (c.y <= targetY) {
+                c.y = targetY;
+                if (Math.abs(c.vy) > 0.05) {
+                  c.vy = -c.vy * 0.25;
+                  c.vx *= 0.5;
+                  c.vz *= 0.5;
+                  sound.playMetalClink(0.55, 1.1);
+                } else {
+                  c.mode = 'upper';
+                  c.vx = 0; c.vy = 0; c.vz = 0;
+                  c.rx = 0; c.rz = 0; c.wx = 0; c.wz = 0;
+                }
+              }
+            } else if (c.TargetDeck === 'lower' && c.z <= LOWER_Z_FRONT) {
+              const targetY = LOWER_Y + COIN_H * 0.5 + (c.stackY || 0);
+              if (c.y <= targetY) {
+                c.y = targetY;
+                if (Math.abs(c.vy) > 0.05) {
+                  c.vy = -c.vy * 0.28;
+                  c.vx *= 0.5;
+                  c.vz *= 0.5;
+                  c.wx *= 0.4;
+                  c.wz *= 0.4;
+                  sound.playMetalClink(Math.min(1, Math.abs(c.vy) * 14), 0.95 + Math.random() * 0.2);
+                } else {
+                  c.mode = 'lower';
+                  c.vx = 0; c.vy = 0; c.vz = 0;
+                  c.rx = 0; c.rz = 0; c.wx = 0; c.wz = 0;
+                }
+              }
+            }
+
+            // Front Chute Sensor: Every 5 coins dropped = 1 Ticket! (NEVER adds back to player's Tokens!)
+            if (!c.scored && c.y < -0.55 && c.z > LOWER_Z_FRONT - 0.25) {
+              c.scored = true;
+              sound.playMetalClink(0.75, 1.05);
+              registerDroppedCoinForTickets(1);
+            }
+
+            if (c.y < -4.5) {
+              coins.splice(i, 1);
+            }
+          }
+        }
+      }
+
+      // Every 5 dropped coins dispenses 1 precious Ticket (掉下5個幣出1張彩票，不加回代幣)
+      function registerDroppedCoinForTickets(coinCount = 1) {
+        state.droppedCoinAcc += coinCount;
+        let ticketsEmitted = 0;
+        while (state.droppedCoinAcc >= 5) {
+          state.droppedCoinAcc -= 5;
+          ticketsEmitted += 1;
+        }
+        if (ticketsEmitted > 0) {
+          awardTickets(ticketsEmitted);
+          showFloatingText(`🎟️ 推落滿 5 枚硬幣！出票 +${ticketsEmitted} 張彩票`, 'text-sky-300', 50, 48);
+        }
+        updateHUD();
+      }
+
+      // ================================================================
+      // 8. UPDATE GPU INSTANCED MESHES
+      // ================================================================
+      const dummy = new THREE.Object3D();
+      function syncInstancedMeshes() {
+        let sCount = 0;
+        let gCount = 0;
+
+        for (let i = 0; i < coins.length; i++) {
+          const c = coins[i];
+          dummy.position.set(c.x, c.y, c.z);
+          if (c.mode === 'pinboard') {
+            dummy.rotation.set(Math.PI / 2, c.rz, 0);
+          } else {
+            dummy.rotation.set(c.rx, c.ry, c.rz);
+          }
+          dummy.updateMatrix();
+
+          if (c.isGold) {
+            goldInstMesh.setMatrixAt(gCount++, dummy.matrix);
+          } else {
+            silverInstMesh.setMatrixAt(sCount++, dummy.matrix);
+          }
+        }
+
+        silverInstMesh.count = sCount;
+        goldInstMesh.count = gCount;
+        silverInstMesh.instanceMatrix.needsUpdate = true;
+        goldInstMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      // ================================================================
+      // 9. GAMEPLAY ACTIONS, CLEAR LEFT TURNTABLE & TOWER GENERATION
+      // ================================================================
+      let nozzleToggle = false;
+
+      function highlightExchangeBar(msg) {
+        sound.playAlertBuzzer();
+        showFloatingText(msg, 'text-amber-300', 50, 22);
+        const grp = document.getElementById('exchangeBtnGroup');
+        grp.classList.add('need-exchange-pulse');
+        setTimeout(() => grp.classList.remove('need-exchange-pulse'), 2200);
+      }
+
+      function shootCoin(isFree = false) {
+        if (state.elevatorActive) return; // Pause coin shooting while watching the Tower Building Ceremony!
+        sound.init();
+        if (!isFree) {
+          // Unified direct token shooting (no separate "投1幣(+2局)" conversion needed!)
+          if (state.tokens <= 0 && state.credits > 0) {
+            state.tokens += state.credits;
+            state.credits = 0;
+          }
+          if (state.tokens <= 0) {
+            highlightExchangeBar('⚠️ 尚未換幣！請先點擊最上方【$100換25幣】或【$500換150幣】才能遊玩！');
+            return;
+          }
+          state.tokens -= 1;
+        }
+
+        sound.playMetalClink(0.5, 1.35);
+
+        nozzleToggle = !nozzleToggle;
+        const nozzleX = nozzleToggle ? -1.35 : 1.35;
+        const tipX = nozzleX + Math.sin(swingAngle) * 0.72;
+        const tipY = 9.65;
+
+        spawnPhysicalCoin({
+          x: tipX,
+          y: tipY,
+          z: -3.38,
+          vx: Math.sin(swingAngle) * 0.065 + (Math.random() - 0.5) * 0.03,
+          vy: -0.075,
+          wz: (Math.random() - 0.5) * 0.3,
+          isGold: Math.random() < 0.22,
+          mode: 'pinboard'
+        });
+
+        updateHUD();
+      }
+
+      // Track how many shots have been fired while the table has ZERO towers (for the long-empty small tower pity rule)
+      let emptyTableShots = 0;
+
+      // Spin one of the 3 Middle Circular Prize Wheels (0 = 左法師輪, 1 = 中天神輪, 2 = 右精靈輪)
+      function spinBackboardWheel(wheelIdx) {
+        const wObj = state.backWheels[wheelIdx];
+        const wMesh = backWheelMeshes[wheelIdx];
+        if (!wObj || !wMesh) return;
+
+        // Pick a winning sector (0..5)
+        const winSector = Math.floor(Math.random() * 6);
+        wObj.targetIdx = winSector;
+        wObj.spinning = true;
+        wObj.vel = 0.42 + Math.random() * 0.08;
+        wObj.statusText = '🎡 轉輪高速抽獎中...';
+        wMesh.updateHubText('🎡 轉動中', '請看指針▼', false);
+        updateBackboardCanvas();
+      }
+
+      function executeBackWheelReward(wheelIdx, sectorIdx) {
+        const wObj = state.backWheels[wheelIdx];
+        const wMesh = backWheelMeshes[wheelIdx];
+        const sec = wObj.sectors[sectorIdx];
+        if (!sec) return;
+
+        // Redraw wheel with the winning sector highlighted in gold/neon
+        renderBackWheelCanvas(wMesh.texObj.ctx, wObj, sectorIdx);
+        wMesh.texObj.tex.needsUpdate = true;
+        wMesh.updateHubText('🎉 中獎!', sec.label, true);
+        wObj.statusText = `🎯 轉出：【${sec.label}】`;
+
+        setTimeout(() => {
+          wMesh.updateHubText(wObj.title.slice(0, 2), sec.label, false);
+        }, 1200);
+
+        if (wheelIdx === 0) {
+          // Left Wheel: Mage
+          if (sec.type === 'coins') {
+            for (let k = 0; k < sec.val; k++) {
+              setTimeout(() => {
+                spawnPhysicalCoin({
+                  x: (Math.random() - 0.5) * 4.8,
+                  y: UPPER_Y + 0.85,
+                  z: BACK_SCRAPER_Z + COIN_R + 0.15 + Math.random() * 0.3,
+                  vy: -0.07,
+                  isGold: true,
+                  mode: 'freefall',
+                  TargetDeck: 'upper'
+                });
+              }, k * 70);
+            }
+          } else if (sec.type === 'step') {
+            state.mageSteps += sec.val;
+            if (state.mageSteps >= 5) {
+              state.mageSteps = 0;
+              wObj.statusText = '🌧️ 集滿5階！天降100金幣雨！';
+              triggerMageCoinRain();
+            }
+          }
+        } else if (wheelIdx === 1) {
+          // Center Wheel: Sky God
+          if (sec.type === 'roulette') {
+            state.rouletteSpinsLeft += 1;
+            if (!state.rouletteSpinning) startLeftRouletteSpin();
+          } else if (sec.type === 'energy') {
+            state.pendingTowerCoins = Math.min(100, state.pendingTowerCoins + sec.val);
+            updateRouletteSignCanvas();
+            if (state.pendingTowerCoins >= 100 && !state.elevatorActive) {
+              triggerRiseNewTower(48);
+            }
+          } else if (sec.type === 'step') {
+            state.godSteps += sec.val;
+            if (state.godSteps >= 5) {
+              state.godSteps = 0;
+              wObj.statusText = '🔥 集滿5階！啟動派對與寶石盤！';
+              triggerPartyTime();
+            }
+          }
+        } else if (wheelIdx === 2) {
+          // Right Wheel: Ticket Elf
+          if (sec.type === 'tickets') {
+            awardTickets(sec.val);
+          } else if (sec.type === 'step') {
+            state.elfSteps += sec.val;
+            if (state.elfSteps >= 5) {
+              state.elfSteps = 0;
+              wObj.statusText = `🎟️ 集滿5階！狂贏 ${state.elfBonusPool} 張彩票！`;
+              awardTickets(state.elfBonusPool);
+            }
+          }
+        }
+
+        updateBackboardCanvas();
+        updateRouletteSignCanvas();
+        updateHUD();
+      }
+
+      function triggerChuteSensor(x) {
+        // Long-empty small tower pity spawn (45 shots with no tower -> spawns a 32-layer small tower)
+        if (towers.length === 0 && !state.elevatorActive) {
+          emptyTableShots += 1;
+          if (emptyTableShots >= 45) {
+            emptyTableShots = 0;
+            triggerRiseNewTower(32);
+            return;
+          }
+        } else {
+          emptyTableShots = 0;
+        }
+
+        if (x >= -3.3 && x < -1.05) {
+          flashRewardBox(0);
+          sound.playChuteSensor('mage');
+          // Always drops 1 base pusher coin + spins the Left Circular Mage Wheel!
+          spawnPhysicalCoin({
+            x: (Math.random() - 0.5) * 4.8,
+            y: UPPER_Y + 0.8,
+            z: BACK_SCRAPER_Z + COIN_R + 0.15 + Math.random() * 0.25,
+            vy: -0.07,
+            isGold: true,
+            mode: 'freefall',
+            TargetDeck: 'upper'
+          });
+          spinBackboardWheel(0);
+        } else if (x >= -1.05 && x <= 1.05) {
+          flashRewardBox(1);
+          sound.playChuteSensor('god');
+          if (state.isPartyTime) {
+            state.rouletteSpinsLeft += 1;
+            if (!state.rouletteSpinning) startLeftRouletteSpin();
+          }
+          spinBackboardWheel(1);
+        } else if (x > 1.05 && x <= 3.3) {
+          flashRewardBox(2);
+          sound.playChuteSensor('elf');
+          spinBackboardWheel(2);
+        }
+        updateBackboardCanvas();
+        updateHUD();
+      }
+
+      function triggerMageCoinRain() {
+        for (let i = 0; i < 30; i++) {
+          setTimeout(() => {
+            spawnPhysicalCoin({
+              x: (Math.random() - 0.5) * 5.2,
+              y: UPPER_Y + 1.4 + Math.random() * 0.8,
+              z: BACK_SCRAPER_Z + COIN_R + 0.15 + Math.random() * 0.5,
+              vx: (Math.random() - 0.5) * 0.02,
+              vy: -0.09,
+              vz: 0.02,
+              isGold: true,
+              mode: 'freefall',
+              TargetDeck: 'upper'
+            });
+          }, i * 45);
+        }
+      }
+
+      function triggerPartyTime() {
+        state.isPartyTime = true;
+        state.partyTimeLeft = 20;
+        state.rouletteSpinsLeft += 2;
+        if (!state.rouletteSpinning) startLeftRouletteSpin();
+        updateBackboardCanvas();
+        updateHUD();
+      }
+
+      // 🎡 左側 3D 擬真寶石輪盤物理滾珠與開獎系統
+      function startLeftRouletteSpin() {
+        if (state.rouletteSpinsLeft <= 0 || state.rouletteSpinning) return;
+        state.rouletteSpinning = true;
+        state.rouletteSpinsLeft -= 1;
+        state.roulettePhase = 'outer_spin';
+        state.rouletteTimer = 0;
+        state.rouletteWinIdx = Math.floor(Math.random() * ROULETTE_POCKETS.length);
+        state.ballAngularVel = 0.34;
+        state.ballRadius = 1.25;
+        drawRouletteDisc(-1);
+        state.rouletteStatusText = '⚪ 鋼珠高速滾動選獎中...';
+        state.rouletteSubText = '觀察鋼珠落入哪一個立體寶石凹槽！';
+        updateRouletteSignCanvas();
+        updateHUD();
+      }
+
+      function settleLeftRouletteResult() {
+        const winIdx = state.rouletteWinIdx;
+        const p = ROULETTE_POCKETS[winIdx];
+        sound.playChuteSensor('god');
+        drawRouletteDisc(winIdx);
+
+        state.rouletteStatusText = `🎯 落入：【${p.label}】！`;
+
+        if (p.type === 'diamond') {
+          state.diamonds += 1;
+          state.pendingTowerCoins = Math.min(100, state.pendingTowerCoins + 25);
+          if (state.diamonds >= 5) {
+            state.rouletteSubText = `💎 集滿 5 顆寶石！狂贏 ${state.superBonus} 張彩票！`;
+            awardTickets(state.superBonus);
+            state.diamonds = 0;
+            state.superBonus = 500;
+          } else {
+            state.rouletteSubText = `💎 寶石 +1 (目前 ${state.diamonds}/5 顆) + 建塔能量 +25%`;
+          }
+        } else if (p.type === 'energy') {
+          state.pendingTowerCoins = Math.min(100, state.pendingTowerCoins + p.val);
+          state.rouletteSubText = `🧱 建塔能量提升至 ${state.pendingTowerCoins}%！`;
+        } else if (p.type === 'tower') {
+          state.pendingTowerCoins = 100;
+          state.rouletteSubText = `🗼 命中直接建塔大獎！準備升起 ${p.val} 層新幣塔！`;
+        } else if (p.type === 'coins') {
+          state.rouletteSubText = `🪙 推台天降 ${p.val} 枚黃金代幣！`;
+          for (let k = 0; k < p.val; k++) {
+            setTimeout(() => {
+              spawnPhysicalCoin({
+                x: (Math.random() - 0.5) * 4.8,
+                y: UPPER_Y + 0.9,
+                z: BACK_SCRAPER_Z + COIN_R + 0.15 + Math.random() * 0.35,
+                vy: -0.07,
+                isGold: true,
+                mode: 'freefall',
+                TargetDeck: 'upper'
+              });
+            }, k * 55);
+          }
+        }
+
+        updateBackboardCanvas();
+        updateRouletteSignCanvas();
+        updateHUD();
+
+        setTimeout(() => {
+          state.rouletteSpinning = false;
+          state.roulettePhase = 'idle';
+          if (state.rouletteSpinsLeft > 0) {
+            startLeftRouletteSpin();
+          } else if (state.pendingTowerCoins >= 100 && !state.elevatorActive) {
+            triggerRiseNewTower(p.type === 'tower' ? p.val : 52);
+          }
+        }, 1200);
+      }
+
+      function triggerRiseNewTower(layers = 56) {
+        if (state.elevatorActive) return;
+        if (towers.length >= 2) return;
+
+        state.elevatorActive = true;
+        state.pendingTowerCoins = 0;
+        emptyTableShots = 0;
+        ceremonySavedCam = activeCamKey;
+
+        // Spawn right inside the U-shaped recess of the rear pusher (x = 0, z = 0.28)!
+        const spawnX = elevatorCenter.x;
+        const spawnZ = elevatorCenter.z;
+        const minSafeDist = (TOWER_RING_R + COIN_R) * 2.15;
+
+        for (let i = 0; i < towers.length; i++) {
+          const existing = towers[i];
+          if (existing.z < 2.35 + minSafeDist) {
+            existing.z = Math.min(LOWER_Z_FRONT - 0.15, 2.35 + minSafeDist + 0.08);
+          }
+        }
+
+        buildPhysicalCoinTower(spawnX, spawnZ, layers, Math.round(layers * 1.5), true);
+        updateHUD();
+      }
+
+      function awardTickets(amount) {
+        state.tickets += amount;
+        updateHUD();
+        renderPrizeShop();
+      }
+
+      function nudgeMachine() {
+        const now = performance.now();
+        if (now - state.nudgeCooldown < 1200) return;
+        state.nudgeCooldown = now;
+        sound.playHeavyThud(0.85);
+        state.shakeOffset.set((Math.random() - 0.5) * 0.25, -0.1, 0.22);
+
+        for (let i = 0; i < coins.length; i++) {
+          const c = coins[i];
+          if (c.mode === 'lower' || c.mode === 'upper') {
+            c.vz += 0.015 + Math.random() * 0.01;
+          }
+        }
+        towers.forEach(t => {
+          if (!t.isRising) {
+            t.z += 0.018;
+            t.angVelX += 0.015;
+          }
+        });
+      }
+
+      // ================================================================
+      // 10. TOM'S WORLD PRIZE REDEMPTION SHOP (湯姆熊獎品兌換系統)
+      // ================================================================
+      function renderPrizeShop() {
+        document.getElementById('shopTicketBalance').textContent = state.tickets.toLocaleString();
+        const grid = document.getElementById('prizeGrid');
+        grid.innerHTML = '';
+
+        const filtered = PRIZE_CATALOG.filter(p => currentPrizeCat === 'all' || p.cat === currentPrizeCat);
+        filtered.forEach(p => {
+          const canAfford = state.tickets >= p.tickets;
+          const owned = state.ownedPrizes[p.id] || 0;
+          const card = document.createElement('div');
+          card.className = `rounded-xl p-3 border flex flex-col justify-between transition ${
+            canAfford ? 'bg-slate-900/95 border-sky-500/50 hover:border-sky-400' : 'bg-slate-900/50 border-white/10 opacity-80'
+          }`;
+          card.innerHTML = `
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-2xl">${p.icon}</span>
+                <span class="font-led text-xs font-black px-2 py-0.5 rounded-full ${
+                  canAfford ? 'bg-sky-500/20 text-sky-300 border border-sky-400/50' : 'bg-white/5 text-slate-400'
+                }">🎟️ ${p.tickets.toLocaleString()} 票</span>
+              </div>
+              <div class="font-bold text-xs text-white mb-0.5">${p.name}</div>
+              <div class="text-[11px] text-slate-400 leading-snug">${p.desc}</div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-white/10 flex items-center justify-between">
+              <span class="text-[10px] text-amber-300 font-semibold">${owned > 0 ? `已擁有 ×${owned}` : '尚未擁有'}</span>
+              <button type="button" data-prize-id="${p.id}" class="redeem-prize-btn px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                canAfford
+                  ? 'bg-sky-500 hover:bg-sky-400 text-slate-950 cursor-pointer active:scale-95'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }">
+                ${canAfford ? '立即兌換' : `差 ${p.tickets - state.tickets} 票`}
+              </button>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        // Attach redeem handlers
+        grid.querySelectorAll('.redeem-prize-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const pid = e.currentTarget.getAttribute('data-prize-id');
+            const prize = PRIZE_CATALOG.find(item => item.id === pid);
+            if (!prize) return;
+            if (state.tickets < prize.tickets) {
+              sound.playAlertBuzzer();
+              showFloatingText(`⚠️ 彩票不足！還差 ${prize.tickets - state.tickets} 張彩票`, 'text-rose-400', 50, 30);
+              return;
+            }
+            state.tickets -= prize.tickets;
+            state.ownedPrizes[pid] = (state.ownedPrizes[pid] || 0) + 1;
+            sound.playChuteSensor('god');
+            showFloatingText(`🎁 成功兌換【${prize.icon} ${prize.name}】！`, 'text-emerald-300', 50, 25);
+            updateHUD();
+            renderPrizeShop();
+          });
+        });
+
+        // Render Owned Trophy Shelf
+        const ownedListEl = document.getElementById('ownedPrizeList');
+        const ownedEntries = Object.entries(state.ownedPrizes).filter(([, cnt]) => cnt > 0);
+        const totalOwned = ownedEntries.reduce((acc, [, cnt]) => acc + cnt, 0);
+        document.getElementById('ownedPrizeCount').textContent = `已兌換 ${totalOwned} 件獎品`;
+
+        if (ownedEntries.length === 0) {
+          ownedListEl.innerHTML = '<span class="text-slate-500">尚未兌換獎品，推落 5 枚硬幣即可獲得 1 張彩票！</span>';
+        } else {
+          ownedListEl.innerHTML = ownedEntries.map(([pid, cnt]) => {
+            const p = PRIZE_CATALOG.find(item => item.id === pid);
+            return `<div class="flex items-center gap-1.5 bg-sky-500/15 border border-sky-400/40 px-2.5 py-1 rounded-lg text-white font-semibold">
+              <span>${p.icon}</span>
+              <span>${p.name}</span>
+              <span class="text-amber-300 font-led">×${cnt}</span>
+            </div>`;
+          }).join('');
+        }
+      }
+
+      // ================================================================
+      // 11. UI SYNC & CONTROLS
+      // ================================================================
+      function updateHUD() {
+        document.getElementById('uiWallet').textContent = state.wallet.toLocaleString();
+        document.getElementById('uiTokens').textContent = state.tokens;
+        document.getElementById('uiTickets').textContent = state.tickets.toLocaleString();
+        document.getElementById('uiCoinToTicketProgress').textContent = `${state.droppedCoinAcc}/5`;
+        document.getElementById('hudSuperBonus').textContent = `${state.superBonus}票`;
+        document.getElementById('hudDiamonds').textContent = `💎${state.diamonds}/5`;
+        document.getElementById('hudMagePool').textContent = state.mageBonusPool;
+        document.getElementById('hudElfPool').textContent = state.elfBonusPool;
+        document.getElementById('hudTowerInfo').textContent = towers.length;
+        document.getElementById('hudSpinsLeft').textContent = state.rouletteSpinsLeft;
+        document.getElementById('hudTowerPending').textContent = `${state.pendingTowerCoins}%`;
+        document.getElementById('hudElevatorState').textContent = state.elevatorActive ? '升塔中' : '待機';
+        updateRouletteSignCanvas();
+      }
+
+      // Top Bar Coin Exchange Buttons (換幣後直接進入代幣，不需再點投幣轉局數！)
+      document.getElementById('btnEx100').addEventListener('click', () => {
+        if (state.wallet < 100) {
+          sound.playAlertBuzzer();
+          return;
+        }
+        state.wallet -= 100;
+        state.tokens += 25;
+        sound.playMetalClink(0.7, 1.2);
+        updateHUD();
+      });
+
+      document.getElementById('btnEx500').addEventListener('click', () => {
+        if (state.wallet < 500) {
+          sound.playAlertBuzzer();
+          return;
+        }
+        state.wallet -= 500;
+        state.tokens += 150;
+        sound.playMetalClink(0.85, 1.2);
+        updateHUD();
+      });
+
+      document.getElementById('btnFreeCoins').addEventListener('click', () => {
+        state.wallet += 500;
+        state.tokens += 50;
+        sound.playMetalClink(0.8, 1.3);
+        updateHUD();
+      });
+
+      document.getElementById('btnOpenPrizeShop').addEventListener('click', () => {
+        document.getElementById('prizeModal').classList.remove('hidden');
+        renderPrizeShop();
+      });
+
+      document.getElementById('btnClosePrizeModal').addEventListener('click', () => {
+        document.getElementById('prizeModal').classList.add('hidden');
+      });
+
+      document.querySelectorAll('.prize-cat-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          currentPrizeCat = e.currentTarget.getAttribute('data-cat');
+          document.querySelectorAll('.prize-cat-btn').forEach(b => {
+            b.className = (b.getAttribute('data-cat') === currentPrizeCat)
+              ? 'prize-cat-btn px-3 py-1 rounded-lg bg-sky-500 text-slate-950 font-bold'
+              : 'prize-cat-btn px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold';
+          });
+          renderPrizeShop();
+        });
+      });
+
+      document.getElementById('btnSound').addEventListener('click', (e) => {
+        sound.muted = !sound.muted;
+        e.currentTarget.textContent = sound.muted ? '🔇' : '🔊';
+      });
+      document.getElementById('btnRules').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.remove('hidden');
+      });
+      document.getElementById('btnCloseRules').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+      });
+      document.getElementById('btnGotItRules').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+      });
+
+      document.getElementById('btnShoot').addEventListener('click', () => shootCoin(false));
+      document.getElementById('btnNudge').addEventListener('click', nudgeMachine);
+      document.getElementById('btnAutoShoot').addEventListener('click', (e) => {
+        if (!state.autoShoot && state.tokens <= 0) {
+          highlightExchangeBar('⚠️ 請先在最上方【換幣】後再開啟自動連發！');
+          return;
+        }
+        state.autoShoot = !state.autoShoot;
+        e.currentTarget.textContent = state.autoShoot ? '⚡ 自動連發: 開' : '⚡ 自動連發: 關';
+        e.currentTarget.className = state.autoShoot
+          ? 'px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-[11px] font-bold transition'
+          : 'px-3 py-1 rounded-full bg-white/5 hover:bg-white/15 text-[11px] font-semibold text-white/80 transition';
+      });
+
+      document.getElementById('btnCheatBuildTower').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+        triggerRiseNewTower(68);
+      });
+      document.getElementById('btnCheatCoinRain').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+        triggerMageCoinRain();
+      });
+      document.getElementById('btnCheatParty').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+        triggerPartyTime();
+      });
+      document.getElementById('btnCheatWheel').addEventListener('click', () => {
+        document.getElementById('rulesModal').classList.add('hidden');
+        state.rouletteSpinsLeft += 1;
+        startLeftRouletteSpin();
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          shootCoin(false);
+        } else if (e.code === 'KeyN') {
+          nudgeMachine();
+        }
+      });
+
+      // ================================================================
+      // 12. MAIN ANIMATION LOOP
+      // ================================================================
+      let lastWheelStep = 0;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        state.shakeOffset.multiplyScalar(0.82);
+        camera.position.lerp(targetCamPos, 0.08).add(state.shakeOffset);
+        currentCamLook.lerp(targetCamLook, 0.08);
+        camera.lookAt(currentCamLook);
+
+        swingAngle = Math.sin(now * 0.003) * 0.55;
+        leftNozzle.rotation.z = swingAngle;
+        rightNozzle.rotation.z = swingAngle;
+
+        if (state.autoShoot && now - state.lastShootTime > (state.isPartyTime ? 140 : 230)) {
+          if (state.tokens <= 0) {
+            state.autoShoot = false;
+            const autoBtn = document.getElementById('btnAutoShoot');
+            autoBtn.textContent = '⚡ 自動連發: 關';
+            autoBtn.className = 'px-3 py-1 rounded-full bg-white/5 hover:bg-white/15 text-[11px] font-semibold text-white/80 transition';
+            highlightExchangeBar('⚠️ 代幣已用盡！請於最上方換幣繼續遊玩');
+          } else {
+            state.lastShootTime = now;
+            shootCoin(false);
+          }
+        }
+
+        // 1. Animate the 3 Middle Circular Prize Wheels (左法師輪 / 中天神輪 / 右精靈輪)
+        state.backWheels.forEach((wObj, idx) => {
+          const wMesh = backWheelMeshes[idx];
+          if (!wMesh) return;
+
+          if (wObj.spinning) {
+            wObj.angle += wObj.vel;
+            wObj.vel *= 0.968;
+
+            // Play mechanical tick every time a sector boundary passes under the top pointer ▼
+            const normAngle = ((wObj.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+            const curSector = Math.round(normAngle / (Math.PI / 3)) % 6;
+            if (curSector !== wObj.lastTickSector) {
+              wObj.lastTickSector = curSector;
+              sound.playWheelSpinTick(0.9 + idx * 0.15);
+              renderBackWheelCanvas(wMesh.texObj.ctx, wObj, curSector);
+              wMesh.texObj.tex.needsUpdate = true;
+            }
+
+            // Snap smoothly into the target winning sector when velocity is low
+            if (wObj.vel < 0.022) {
+              const targetAngle = wObj.targetIdx * (Math.PI / 3);
+              const curMod = ((wObj.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+              let diff = targetAngle - curMod;
+              if (diff < -Math.PI) diff += Math.PI * 2;
+              if (diff >  Math.PI) diff -= Math.PI * 2;
+              wObj.angle += diff * 0.25;
+              if (Math.abs(diff) < 0.03) {
+                wObj.angle = targetAngle;
+                wObj.spinning = false;
+                wObj.vel = 0;
+                executeBackWheelReward(idx, wObj.targetIdx);
+              }
+            }
+            wMesh.discMesh.rotation.z = wObj.angle;
+          } else {
+            // Subtle breathing glow on the 3D wheel rim when idle
+            const pulse = 0.75 + 0.25 * Math.sin(now * 0.004 + idx);
+            wMesh.ringMat.color.setHex(wObj.hex).multiplyScalar(pulse);
+          }
+        });
+
+        if (state.isPartyTime) {
+          state.partyTimeLeft -= 0.016;
+          if (state.partyTimeLeft <= 0) {
+            state.isPartyTime = false;
+            document.getElementById('eventBanner').classList.add('hidden');
+          }
+        }
+
+        // 2. Animate the 3D Left Gem Roulette & Rolling Chrome Steel Ball
+        rCenterGem.rotation.y += 0.04;
+        if (state.rouletteSpinning) {
+          rRotorGroup.rotation.y += 0.055;
+          rNeonRingMat.color.setHSL((now * 0.002) % 1.0, 1.0, 0.6);
+          rouletteSpotLight.intensity = 2.4;
+
+          if (state.roulettePhase === 'outer_spin') {
+            state.rouletteTimer += 1;
+            const prevPocketTick = Math.floor(state.ballAngle / (Math.PI / 4));
+            state.ballAngle -= state.ballAngularVel;
+            const newPocketTick = Math.floor(state.ballAngle / (Math.PI / 4));
+            if (prevPocketTick !== newPocketTick && state.rouletteTimer % 2 === 0) {
+              sound.playWheelSpinTick(1.35);
+            }
+
+            state.ballAngularVel = Math.max(0.06, state.ballAngularVel * 0.985);
+            // Spiral inward from outer track (1.25) toward the 6 pockets (0.80)
+            if (state.rouletteTimer > 42) {
+              state.ballRadius += (0.80 - state.ballRadius) * 0.08;
+            }
+            // Bounce slightly when passing the 8 brass deflectors
+            const bounceY = (state.ballRadius > 0.92) ? Math.abs(Math.sin(state.ballAngle * 8)) * 0.05 : 0;
+            steelBallMesh.position.set(
+              Math.cos(state.ballAngle) * state.ballRadius,
+              0.27 + bounceY,
+              Math.sin(state.ballAngle) * state.ballRadius
+            );
+
+            if (state.rouletteTimer > 95) {
+              state.roulettePhase = 'celebrate';
+              settleLeftRouletteResult();
+            }
+          } else if (state.roulettePhase === 'celebrate') {
+            // Lock the chrome steel ball directly inside the winning pocket on the rotating rotor!
+            const pocketLocalAngle = (state.rouletteWinIdx / 6) * Math.PI * 2;
+            const worldAngle = pocketLocalAngle - rRotorGroup.rotation.y;
+            steelBallMesh.position.set(
+              Math.cos(worldAngle) * 0.80,
+              0.24,
+              Math.sin(worldAngle) * 0.80
+            );
+          }
+        } else {
+          rRotorGroup.rotation.y += 0.012;
+          rNeonRingMat.color.setHex(0x38bdf8);
+          rouletteSpotLight.intensity = 0.85;
+          const restingIdx = Math.max(0, state.rouletteWinIdx);
+          const pocketLocalAngle = (restingIdx / 6) * Math.PI * 2;
+          const worldAngle = pocketLocalAngle - rRotorGroup.rotation.y;
+          steelBallMesh.position.set(
+            Math.cos(worldAngle) * 0.80,
+            0.24,
+            Math.sin(worldAngle) * 0.80
+          );
+        }
+
+        stepPhysics(now);
+        syncInstancedMeshes();
+
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        applyCamPreset(activeCamKey);
+      });
+
+      window.onload = () => {
+        initPlayfield();
+        syncInstancedMeshes();
+        updateHUD();
+        renderPrizeShop();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>
